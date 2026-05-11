@@ -88,8 +88,7 @@ pub fn work_plans_from_config(config: &ElasticOperatingConfig) -> Vec<WorkPlan> 
 
     if config
         .department_instance(Department::Research)
-        .map(|d| d.active)
-        .unwrap_or(false)
+        .is_some_and(|d| d.active)
     {
         plans.push(WorkPlan {
             department: Department::Research,
@@ -103,8 +102,7 @@ pub fn work_plans_from_config(config: &ElasticOperatingConfig) -> Vec<WorkPlan> 
 
     if config
         .department_instance(Department::SalesOps)
-        .map(|d| d.active)
-        .unwrap_or(false)
+        .is_some_and(|d| d.active)
     {
         plans.push(WorkPlan {
             department: Department::SalesOps,
@@ -118,8 +116,7 @@ pub fn work_plans_from_config(config: &ElasticOperatingConfig) -> Vec<WorkPlan> 
 
     if config
         .department_instance(Department::Marketing)
-        .map(|d| d.active)
-        .unwrap_or(false)
+        .is_some_and(|d| d.active)
     {
         for campaign in config.active_campaigns() {
             plans.push(WorkPlan {
@@ -138,8 +135,7 @@ pub fn work_plans_from_config(config: &ElasticOperatingConfig) -> Vec<WorkPlan> 
 
     if config
         .department_instance(Department::Sdr)
-        .map(|d| d.active)
-        .unwrap_or(false)
+        .is_some_and(|d| d.active)
     {
         for campaign in config.active_campaigns() {
             plans.push(WorkPlan {
@@ -155,8 +151,7 @@ pub fn work_plans_from_config(config: &ElasticOperatingConfig) -> Vec<WorkPlan> 
 
     if config
         .department_instance(Department::MemoryAnalytics)
-        .map(|d| d.active)
-        .unwrap_or(false)
+        .is_some_and(|d| d.active)
     {
         plans.push(WorkPlan {
             department: Department::MemoryAnalytics,

@@ -131,7 +131,7 @@ pub async fn ingest_reply(
             })?)?
         }
         InboundReplyProvider::TwilioWhatsApp => {
-            normalize_twilio_whatsapp(serde_json::from_value(input.payload).map_err(|err| {
+            normalize_twilio_whatsapp(&serde_json::from_value(input.payload).map_err(|err| {
                 StoreError::Contract(format!("invalid Twilio WhatsApp payload: {err}"))
             })?)?
         }
@@ -243,7 +243,7 @@ fn normalize_sendgrid_reply(payload: SendGridParsePayload) -> Result<NormalizedR
         .text
         .clone()
         .or(payload.html.clone())
-        .map(strip_html)
+        .map(|body| strip_html(&body))
         .unwrap_or_default();
     let message_id = extract_header(&payload.headers, "Message-ID")
         .or_else(|| extract_header(&payload.headers, "Message-Id"))
@@ -339,7 +339,7 @@ fn verified_raw_body(input: &VerifiedReplyWebhookInput) -> Result<Vec<u8>, Store
 }
 
 fn normalize_twilio_whatsapp(
-    payload: TwilioWhatsAppInboundPayload,
+    payload: &TwilioWhatsAppInboundPayload,
 ) -> Result<NormalizedReply, StoreError> {
     let from_locator = strip_whatsapp_prefix(&payload.from);
     if from_locator.is_empty() {
@@ -918,7 +918,7 @@ fn extract_correlation_from_reply_address(value: &str) -> Option<Uuid> {
     Uuid::parse_str(correlation_raw).ok()
 }
 
-fn strip_html(value: String) -> String {
+fn strip_html(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     let mut in_tag = false;
     for ch in value.chars() {
@@ -992,7 +992,7 @@ mod tests {
 
     #[test]
     fn twilio_whatsapp_normalization_uses_message_sid() {
-        let normalized = normalize_twilio_whatsapp(TwilioWhatsAppInboundPayload {
+        let normalized = normalize_twilio_whatsapp(&TwilioWhatsAppInboundPayload {
             message_sid: "SM123".into(),
             from: "whatsapp:+15551234567".into(),
             to: "whatsapp:+15557654321".into(),

@@ -364,7 +364,7 @@ pub fn plan_ir_graph(
     }
 
     Ok(CompiledOperationalPlan {
-        program: program.clone(),
+        program,
         graph,
         node_plans,
     })

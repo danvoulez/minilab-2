@@ -113,7 +113,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("target".into(), json!(target.0.clone()));
                 args.insert("scope".into(), json!(scope.clone()));
                 Ok((
-                    plan(false, Some(50), vec!["host.snapshot"]),
+                    plan(false, Some(50), &["host.snapshot"]),
                     cmd("host", "inspect", args),
                 ))
             }
@@ -127,7 +127,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("target".into(), json!(target.0.clone()));
                 args.insert("window".into(), json!(window.0.clone()));
                 Ok((
-                    plan(false, Some(120), vec!["events.slice"]),
+                    plan(false, Some(120), &["events.slice"]),
                     cmd("events", "collect", args),
                 ))
             }
@@ -136,7 +136,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("kind".into(), json!(kind.0.clone()));
                 args.insert("id".into(), json!(id.clone()));
                 Ok((
-                    plan(false, Some(40), vec!["events.record"]),
+                    plan(false, Some(40), &["events.record"]),
                     cmd("events", "fetch", args),
                 ))
             }
@@ -150,7 +150,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("input_ref".into(), json!(input_ref.0.clone()));
                 args.insert("infer_surface".into(), json!(infer_surface));
                 Ok((
-                    plan(false, Some(300), vec!["intel.compress"]),
+                    plan(false, Some(300), &["intel.compress"]),
                     cmd("intel", "compress", args),
                 ))
             }
@@ -166,7 +166,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("schema".into(), json!(schema.0.clone()));
                 args.insert("infer_surface".into(), json!(infer_surface));
                 Ok((
-                    plan(false, Some(250), vec!["intel.labels"]),
+                    plan(false, Some(250), &["intel.labels"]),
                     cmd("intel", "classify", args),
                 ))
             }
@@ -182,7 +182,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("policy".into(), json!(policy.0.clone()));
                 args.insert("infer_surface".into(), json!(infer_surface));
                 Ok((
-                    plan(false, Some(180), vec!["intel.rank"]),
+                    plan(false, Some(180), &["intel.rank"]),
                     cmd("intel", "prioritize", args),
                 ))
             }
@@ -192,7 +192,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("left".into(), json!(left.0.clone()));
                 args.insert("right".into(), json!(right.0.clone()));
                 Ok((
-                    plan(false, Some(150), vec!["intel.diff"]),
+                    plan(false, Some(150), &["intel.diff"]),
                     cmd("intel", "compare", args),
                 ))
             }
@@ -204,7 +204,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("surface".into(), json!(surface.0.clone()));
                 args.insert("routed_primitive".into(), json!(routed.to_string()));
                 Ok((
-                    plan(false, Some(20), vec!["routing.decision"]),
+                    plan(false, Some(20), &["routing.decision"]),
                     cmd("routing", "surface", args),
                 ))
             }
@@ -214,7 +214,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("trigger".into(), json!(trigger.0.clone()));
                 args.insert("action_primitive".into(), json!(action_prim.to_string()));
                 Ok((
-                    plan(false, Some(25), vec!["runtime.schedule"]),
+                    plan(false, Some(25), &["runtime.schedule"]),
                     cmd("runtime", "schedule", args),
                 ))
             }
@@ -230,11 +230,7 @@ impl MinilabRuntimeLowerer {
                     json!(format!("{}:{}", node_id.0, inner)),
                 );
                 Ok((
-                    plan(
-                        true,
-                        Some(10),
-                        vec!["checkpoint.open", "authority.envelope"],
-                    ),
+                    plan(true, Some(10), &["checkpoint.open", "authority.envelope"]),
                     cmd("checkpoint", "await", args),
                 ))
             }
@@ -243,7 +239,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("data_ref".into(), json!(data.0.clone()));
                 args.insert("durability".into(), json!(durability));
                 Ok((
-                    plan(false, Some(80), vec!["store.write"]),
+                    plan(false, Some(80), &["store.write"]),
                     cmd("store", "write_intent", args),
                 ))
             }
@@ -265,7 +261,7 @@ impl MinilabRuntimeLowerer {
                 if let crate::ir::ActionKind::Canonical(id) = action {
                     if id.dotted_str() == "host.pair" {
                         return Ok((
-                            plan(false, Some(150), vec!["host.pair.initiated", "host.paired"]),
+                            plan(false, Some(150), &["host.pair.initiated", "host.paired"]),
                             platform_cmd("host", "pair", args),
                         ));
                     }
@@ -284,7 +280,7 @@ impl MinilabRuntimeLowerer {
                             plan(
                                 false,
                                 Some(400),
-                                vec![
+                                &[
                                     "eligibility.evaluated",
                                     "premium.evaluated",
                                     "policy.evaluated",
@@ -303,7 +299,7 @@ impl MinilabRuntimeLowerer {
                             plan(
                                 false,
                                 Some(700),
-                                vec![
+                                &[
                                     "install.reconcile.planned",
                                     "install.reconcile.step.applied",
                                     "install.reconcile.reconciled",
@@ -323,7 +319,7 @@ impl MinilabRuntimeLowerer {
                     plan(
                         matches!(action, crate::ir::ActionKind::HostReconcile),
                         Some(200),
-                        vec!["exec.result"],
+                        &["exec.result"],
                     ),
                     cmd(ns, verb, args),
                 ))
@@ -338,7 +334,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("desired_ref".into(), json!(desired.0.clone()));
                 args.insert("mode".into(), json!(mode));
                 Ok((
-                    plan(true, Some(500), vec!["reconcile.diff", "exec.result"]),
+                    plan(true, Some(500), &["reconcile.diff", "exec.result"]),
                     cmd("host", "reconcile", args),
                 ))
             }
@@ -347,7 +343,7 @@ impl MinilabRuntimeLowerer {
                 args.insert("surface".into(), json!(surface.0.clone()));
                 args.insert("payload_ref".into(), json!(payload.0.clone()));
                 Ok((
-                    plan(false, Some(30), vec!["emit.ack"]),
+                    plan(false, Some(30), &["emit.ack"]),
                     cmd("place", "emit", args),
                 ))
             }
@@ -355,7 +351,7 @@ impl MinilabRuntimeLowerer {
                 let mut args = BTreeMap::new();
                 args.insert("id".into(), json!(id.clone()));
                 Ok((
-                    plan(true, Some(20), vec!["cancel.ack"]),
+                    plan(true, Some(20), &["cancel.ack"]),
                     cmd("work", "cancel", args),
                 ))
             }
@@ -363,7 +359,7 @@ impl MinilabRuntimeLowerer {
     }
 }
 
-fn plan(requires_confirmation: bool, ms: Option<u64>, kinds: Vec<&'static str>) -> LoweringPlan {
+fn plan(requires_confirmation: bool, ms: Option<u64>, kinds: &[&'static str]) -> LoweringPlan {
     LoweringPlan {
         requires_confirmation,
         estimated_latency_ms: ms,
