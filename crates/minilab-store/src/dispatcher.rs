@@ -100,6 +100,8 @@ struct HostPairCommandArgs {
     host_id: Uuid,
     challenge: String,
     agent_pubkey: String,
+    #[serde(default)]
+    agent_signature: Option<String>,
     correlation_id: Uuid,
 }
 
@@ -184,6 +186,7 @@ pub async fn dispatch_operational_command(
                     host_id: args.host_id,
                     challenge: args.challenge,
                     agent_pubkey: args.agent_pubkey,
+                    agent_signature: args.agent_signature,
                     correlation_id: args.correlation_id,
                 },
             )

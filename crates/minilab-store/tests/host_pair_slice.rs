@@ -106,6 +106,7 @@ fn base_input(host_id: Uuid, correlation_id: Uuid) -> HostPairInput {
         host_id,
         challenge: VALID_CHALLENGE.into(),
         agent_pubkey: VALID_PUBKEY.into(),
+        agent_signature: None,
         correlation_id,
     }
 }
@@ -308,11 +309,9 @@ async fn missing_token_hash_fails_with_token_mismatch_pre_admission() {
 }
 
 #[tokio::test]
-async fn production_without_real_executor_fails_upstream_at_execution_phase() {
-    // Invariant #7 of bundle-into-grammar ("no simulation escape"): a real
-    // platform executor would refuse when sim_mode != Production. We have
-    // not landed a real executor yet, so Production must refuse *honestly*
-    // at the execution phase — not silently simulate.
+async fn production_without_signature_fails_at_execution_phase() {
+    // Production now uses the real ed25519 executor path. Missing signatures
+    // fail closed at execution phase rather than falling back to a mock pairer.
     let server = MockServer::start().await;
     let s = Seed::fresh();
     seed(&server, &s).await;
@@ -327,13 +326,13 @@ async fn production_without_real_executor_fails_upstream_at_execution_phase() {
         HostPairOutcome::Failed {
             reason_code, phase, ..
         } => {
-            assert_eq!(reason_code, "upstream_error");
+            assert_eq!(reason_code, "invalid_signature");
             assert_eq!(
                 phase, "execution",
-                "missing real executor is an execution-phase failure"
+                "missing signatures fail during execution"
             );
         }
-        other => panic!("expected Failed(upstream_error), got {other:?}"),
+        other => panic!("expected Failed(invalid_signature), got {other:?}"),
     }
 
     // `host.pair.initiated` IS written before the executor is consulted, so
@@ -346,6 +345,6 @@ async fn production_without_real_executor_fails_upstream_at_execution_phase() {
             EvidenceKind::HOST_PAIR_INITIATED.to_string(),
             EvidenceKind::HOST_PAIR_FAILED.to_string(),
         ],
-        "admission precedes execution failure in the ledger"
+        "admission precedes signature failure in the ledger"
     );
 }

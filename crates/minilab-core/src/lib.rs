@@ -41,7 +41,7 @@ pub use exploration::{
     SimulationSpec, SimulationTarget, Variation,
 };
 pub use registry::{ChannelPolicy, CompanyRegistry, EscalationRule, RegistryDepartmentSpec};
-pub use simulation::SimMode;
+pub use simulation::{SimBranch, SimMode};
 pub use week1::Week1Step;
 pub use workflows::{
     campaign_workflow_bundle, workflow_runs_from_config, workflow_specs_for_config, WorkflowInput,

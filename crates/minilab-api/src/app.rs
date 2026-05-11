@@ -54,6 +54,23 @@ struct ReadinessResponse<'a> {
     sim_mode: String,
 }
 
+#[derive(Debug, Serialize)]
+struct ObservabilityMetrics {
+    service: String,
+    sim_mode: String,
+    sim_branch_id: String,
+    sim_parent_branch_id: Option<String>,
+    agent_sessions_total: usize,
+    agent_sessions_pending: usize,
+    evidence_close_span: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct OperatorDashboard {
+    metrics: ObservabilityMetrics,
+    recent_agent_sessions: Vec<crate::agent_runtime::AgentRuntimeSessionSnapshot>,
+}
+
 pub fn build_app(state: AppState) -> Router {
     let config = state.config.clone();
     let sensitive_headers = [
@@ -97,6 +114,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/healthz", get(healthz))
         .route("/readyz", get(readyz));
 
+    let observability_routes = Router::new()
+        .route("/metrics", get(observability_metrics))
+        .route("/dashboard", get(operator_dashboard));
+
     let twilio_routes = Router::new()
         .route("/twilio/whatsapp", post(twilio_whatsapp_webhook))
         .layer(RequestBodyLimitLayer::new(config.twilio_max_body_bytes));
@@ -119,6 +140,7 @@ pub fn build_app(state: AppState) -> Router {
 
     Router::new()
         .merge(health_routes)
+        .nest("/operators", observability_routes)
         .nest("/webhooks", twilio_routes.merge(sendgrid_routes))
         .nest("/outbound", outbound_routes)
         .nest("/host-pairings", host_pairing_routes)
@@ -135,6 +157,8 @@ struct HostPairRequest {
     host_id: Uuid,
     challenge: String,
     agent_pubkey: String,
+    #[serde(default)]
+    agent_signature: Option<String>,
     #[serde(default)]
     correlation_id: Option<Uuid>,
 }
@@ -165,6 +189,9 @@ async fn host_pair(
     params.insert("host_id".into(), json!(body.host_id));
     params.insert("challenge".into(), json!(body.challenge));
     params.insert("agent_pubkey".into(), json!(body.agent_pubkey));
+    if let Some(agent_signature) = body.agent_signature {
+        params.insert("agent_signature".into(), json!(agent_signature));
+    }
     params.insert("correlation_id".into(), json!(correlation_id));
 
     let outcome =
@@ -382,8 +409,39 @@ async fn readyz(State(state): State<AppState>) -> Result<impl IntoResponse, ApiE
     Ok(Json(ReadinessResponse {
         service: "minilab-api",
         status: "ready",
-        sim_mode: format!("{:?}", state.store.sim_mode).to_ascii_lowercase(),
+        sim_mode: state.store.sim_mode.as_str().into(),
     }))
+}
+
+async fn observability_metrics(
+    State(state): State<AppState>,
+) -> Result<Json<ObservabilityMetrics>, ApiError> {
+    Ok(Json(build_observability_metrics(&state)?))
+}
+
+async fn operator_dashboard(
+    State(state): State<AppState>,
+) -> Result<Json<OperatorDashboard>, ApiError> {
+    let mut sessions = state.agent_runtime.list_sessions()?;
+    sessions.sort_by(|a, b| b.run_id.cmp(&a.run_id));
+    sessions.truncate(20);
+    Ok(Json(OperatorDashboard {
+        metrics: build_observability_metrics(&state)?,
+        recent_agent_sessions: sessions,
+    }))
+}
+
+fn build_observability_metrics(state: &AppState) -> Result<ObservabilityMetrics, ApiError> {
+    let sessions = state.agent_runtime.list_sessions()?;
+    Ok(ObservabilityMetrics {
+        service: "minilab-api".into(),
+        sim_mode: state.store.sim_mode.as_str().into(),
+        sim_branch_id: state.store.sim_branch.branch_id.clone(),
+        sim_parent_branch_id: state.store.sim_branch.parent_branch_id.clone(),
+        agent_sessions_total: sessions.len(),
+        agent_sessions_pending: sessions.iter().filter(|session| session.pending).count(),
+        evidence_close_span: "evidence.close",
+    })
 }
 
 async fn twilio_whatsapp_webhook(

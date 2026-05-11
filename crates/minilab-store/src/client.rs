@@ -1,7 +1,7 @@
 use reqwest::{header, Client, Url};
 use thiserror::Error;
 
-use minilab_core::SimMode;
+use minilab_core::{SimBranch, SimMode};
 
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -31,6 +31,7 @@ pub struct StoreClient {
     pub http: Client,
     pub base_url: String,
     pub sim_mode: SimMode,
+    pub sim_branch: SimBranch,
 }
 
 impl StoreClient {
@@ -46,6 +47,7 @@ impl StoreClient {
     ) -> Self {
         let base_url = supabase_url.into();
         let key = admin_key.into();
+        let sim_branch = SimBranch::for_mode(sim_mode);
         let mut headers = header::HeaderMap::new();
         headers.insert("apikey", header::HeaderValue::from_str(&key).unwrap());
         headers.insert(
@@ -68,6 +70,7 @@ impl StoreClient {
             http,
             base_url,
             sim_mode,
+            sim_branch,
         }
     }
 
@@ -95,7 +98,9 @@ impl StoreClient {
                 })
             }
         };
-        Ok(Self::with_mode(url, key, sim_mode))
+        let mut client = Self::with_mode(url, key, sim_mode);
+        client.sim_branch = load_sim_branch(sim_mode);
+        Ok(client)
     }
 
     pub fn rest(&self, table: &str) -> String {
@@ -104,6 +109,28 @@ impl StoreClient {
 
     pub fn rpc(&self, name: &str) -> String {
         format!("{}/rest/v1/rpc/{}", self.base_url, name)
+    }
+
+    pub fn fork_counterfactual(&self) -> Self {
+        let mut fork = self.clone();
+        fork.sim_mode = SimMode::Counterfactual;
+        fork.sim_branch =
+            SimBranch::fork(SimMode::Counterfactual, self.sim_branch.branch_id.clone());
+        fork
+    }
+}
+
+fn load_sim_branch(sim_mode: SimMode) -> SimBranch {
+    let branch_id = std::env::var("MINILAB_SIM_BRANCH_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+    let parent_branch_id = std::env::var("MINILAB_SIM_PARENT_BRANCH_ID")
+        .ok()
+        .filter(|value| !value.trim().is_empty());
+
+    match branch_id {
+        Some(branch_id) => SimBranch::from_parts(sim_mode, branch_id, parent_branch_id),
+        None => SimBranch::for_mode(sim_mode),
     }
 }
 
