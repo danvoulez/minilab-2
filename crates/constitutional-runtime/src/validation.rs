@@ -51,8 +51,11 @@ pub enum ValidationError {
 fn max_nesting_depth(prim: &IRPrimitive) -> usize {
     match prim {
         IRPrimitive::Route { operation, .. } => 1 + max_nesting_depth(operation),
-        IRPrimitive::Schedule { action, .. } => 1 + max_nesting_depth(action),
-        IRPrimitive::Confirm { action, .. } => 1 + max_nesting_depth(action),
+        // `Schedule` and `Confirm` both wrap a single inner action graph, so
+        // structural depth is counted through `action` with the same rule.
+        IRPrimitive::Schedule { action, .. } | IRPrimitive::Confirm { action, .. } => {
+            1 + max_nesting_depth(action)
+        }
         _ => 1,
     }
 }

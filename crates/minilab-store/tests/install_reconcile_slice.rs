@@ -80,7 +80,9 @@ async fn happy_path_writes_plan_steps_and_reconciled() {
             assert_eq!(applied_steps, 2);
             assert_eq!(skipped_steps, 0);
         }
-        other => panic!("expected reconciled, got {other:?}"),
+        other @ InstallReconcileOutcome::Failed { .. } => {
+            panic!("expected reconciled, got {other:?}")
+        }
     }
 
     let rows = evidence_posts(&server).await;
@@ -127,7 +129,9 @@ async fn sub_step_failure_closes_with_failed_after_prior_steps() {
             assert_eq!(phase, "execution");
             assert_eq!(applied_steps, 1);
         }
-        other => panic!("expected failed, got {other:?}"),
+        other @ InstallReconcileOutcome::Reconciled { .. } => {
+            panic!("expected failed, got {other:?}")
+        }
     }
 
     let rows = evidence_posts(&server).await;
@@ -155,7 +159,9 @@ async fn idempotent_rerun_returns_reconciled_without_new_rows() {
             .unwrap()
         {
             InstallReconcileOutcome::Reconciled { desired_hash, .. } => desired_hash,
-            other => panic!("expected reconciled, got {other:?}"),
+            other @ InstallReconcileOutcome::Failed { .. } => {
+                panic!("expected reconciled, got {other:?}")
+            }
         }
     };
 
@@ -211,7 +217,9 @@ async fn partial_convergence_applies_only_missing_or_changed_services() {
             assert_eq!(applied_steps, 1);
             assert_eq!(skipped_steps, 1);
         }
-        other => panic!("expected reconciled, got {other:?}"),
+        other @ InstallReconcileOutcome::Failed { .. } => {
+            panic!("expected reconciled, got {other:?}")
+        }
     }
 
     let rows = evidence_posts(&server).await;

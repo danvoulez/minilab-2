@@ -230,22 +230,21 @@ pub fn explain_touch(correlation_id: Uuid, rows: &[EvidenceTrailRow]) -> TouchEx
                 .or(message_family);
                 push_unique(&mut why_contacted, "approved message family was available");
             }
-            EvidenceKind::ELIGIBILITY_EVALUATED => {
-                if payload_bool(&row.payload, &["eligible", "allowed"]) == Some(true) {
-                    push_unique(&mut why_contacted, "eligibility gate allowed the contact");
-                }
+            EvidenceKind::ELIGIBILITY_EVALUATED
+                if payload_bool(&row.payload, &["eligible", "allowed"]) == Some(true) =>
+            {
+                push_unique(&mut why_contacted, "eligibility gate allowed the contact");
             }
-            EvidenceKind::PREMIUM_EVALUATED => {
+            EvidenceKind::PREMIUM_EVALUATED
                 if payload_bool(&row.payload, &["premium_required", "requires_premium"])
-                    == Some(false)
-                {
-                    push_unique(&mut why_contacted, "premium gate stayed routine");
-                }
+                    == Some(false) =>
+            {
+                push_unique(&mut why_contacted, "premium gate stayed routine");
             }
-            EvidenceKind::POLICY_EVALUATED => {
-                if payload_bool(&row.payload, &["allowed", "pass"]) == Some(true) {
-                    push_unique(&mut why_contacted, "policy gate allowed the send");
-                }
+            EvidenceKind::POLICY_EVALUATED
+                if payload_bool(&row.payload, &["allowed", "pass"]) == Some(true) =>
+            {
+                push_unique(&mut why_contacted, "policy gate allowed the send");
             }
             EvidenceKind::OUTBOUND_ADMITTED => {
                 push_unique(&mut why_contacted, "outbound act was admitted");

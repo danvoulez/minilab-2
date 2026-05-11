@@ -129,7 +129,7 @@ async fn happy_path_writes_initiated_then_paired_under_single_correlation() {
 
     let pairing_session_id = match outcome {
         HostPairOutcome::Paired { pairing_session_id } => pairing_session_id,
-        other => panic!("expected Paired, got {other:?}"),
+        other @ HostPairOutcome::Failed { .. } => panic!("expected Paired, got {other:?}"),
     };
 
     let rows = evidence_posts(&server).await;
@@ -245,7 +245,9 @@ async fn replay_of_same_challenge_writes_pair_failed_deterministically() {
             assert_eq!(reason_code, "replay_detected");
             assert_eq!(phase, "pre_admission");
         }
-        other => panic!("expected Failed(replay_detected), got {other:?}"),
+        other @ HostPairOutcome::Paired { .. } => {
+            panic!("expected Failed(replay_detected), got {other:?}")
+        }
     }
 
     let rows = evidence_posts(&server).await;
@@ -296,7 +298,9 @@ async fn missing_token_hash_fails_with_token_mismatch_pre_admission() {
                 "token check happens before admission"
             );
         }
-        other => panic!("expected Failed(token_mismatch), got {other:?}"),
+        other @ HostPairOutcome::Paired { .. } => {
+            panic!("expected Failed(token_mismatch), got {other:?}")
+        }
     }
 
     let rows = evidence_posts(&server).await;
@@ -332,7 +336,9 @@ async fn production_without_signature_fails_at_execution_phase() {
                 "missing signatures fail during execution"
             );
         }
-        other => panic!("expected Failed(invalid_signature), got {other:?}"),
+        other @ HostPairOutcome::Paired { .. } => {
+            panic!("expected Failed(invalid_signature), got {other:?}")
+        }
     }
 
     // `host.pair.initiated` IS written before the executor is consulted, so

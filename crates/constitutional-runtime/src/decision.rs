@@ -96,8 +96,11 @@ pub fn contains_decide(p: &IRPrimitive) -> bool {
     match p {
         IRPrimitive::Decide { .. } => true,
         IRPrimitive::Route { operation, .. } => contains_decide(operation),
-        IRPrimitive::Schedule { action, .. } => contains_decide(action),
-        IRPrimitive::Confirm { action, .. } => contains_decide(action),
+        // `Schedule` and `Confirm` are semantic wrappers around one inner action;
+        // unresolved `Decide` is detected by recursing into that action identically.
+        IRPrimitive::Schedule { action, .. } | IRPrimitive::Confirm { action, .. } => {
+            contains_decide(action)
+        }
         _ => false,
     }
 }

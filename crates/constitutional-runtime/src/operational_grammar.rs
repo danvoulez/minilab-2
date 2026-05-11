@@ -899,7 +899,7 @@ mod tests {
         assert_eq!(l.arg_str("text"), Some("hello = world"));
         match l.arg("text").unwrap() {
             ArgValue::Quoted(_) => {}
-            _ => panic!("expected quoted"),
+            other @ ArgValue::Bare(_) => panic!("expected quoted, got {other:?}"),
         }
     }
 

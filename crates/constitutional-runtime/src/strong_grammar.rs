@@ -151,16 +151,12 @@ struct StrongCompiler {
 impl StrongCompiler {
     fn compile(mut self, program: &StrongProgram) -> Result<IrGraph, CompileError> {
         match program {
-            StrongProgram::SystemReview { system_review } => self.compile_review(
-                "system.review",
-                system_review,
-                default_review_steps(&system_review.pipeline),
-            )?,
-            StrongProgram::DriftReview { drift_review } => self.compile_review(
-                "drift.review",
-                drift_review,
-                default_review_steps(&drift_review.pipeline),
-            )?,
+            StrongProgram::SystemReview { system_review } => {
+                self.compile_review("system.review", system_review)?;
+            }
+            StrongProgram::DriftReview { drift_review } => {
+                self.compile_review("drift.review", drift_review)?;
+            }
             StrongProgram::Pipeline { pipeline } => self.compile_pipeline(
                 "pipeline",
                 &pipeline.target,
@@ -187,16 +183,23 @@ impl StrongCompiler {
         Ok(self.graph)
     }
 
-    fn compile_review(
-        &mut self,
-        family: &str,
-        review: &ReviewSpec,
-        steps: Vec<PipelineStep>,
-    ) -> Result<(), CompileError> {
+    fn compile_review(&mut self, family: &str, review: &ReviewSpec) -> Result<(), CompileError> {
+        let default_steps = [
+            PipelineStep::Collect,
+            PipelineStep::Compress,
+            PipelineStep::Classify,
+            PipelineStep::Prioritize,
+        ];
+        let steps = if review.pipeline.is_empty() {
+            default_steps.as_slice()
+        } else {
+            &review.pipeline
+        };
+
         self.compile_pipeline(
             family,
             &review.target,
-            &steps,
+            steps,
             review.on_success.as_ref(),
             review.on_failure.as_ref(),
         )
@@ -281,19 +284,6 @@ impl StrongCompiler {
             body,
         });
         id
-    }
-}
-
-fn default_review_steps(configured: &[PipelineStep]) -> Vec<PipelineStep> {
-    if configured.is_empty() {
-        vec![
-            PipelineStep::Collect,
-            PipelineStep::Compress,
-            PipelineStep::Classify,
-            PipelineStep::Prioritize,
-        ]
-    } else {
-        configured.to_vec()
     }
 }
 
