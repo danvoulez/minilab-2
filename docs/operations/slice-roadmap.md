@@ -117,8 +117,8 @@ That is **“the end” of the constitutional GTM wedge** — not the end of all
 | | |
 | --- | --- |
 | **Goal** | One **correlation** can be **replayed** from evidence (audit); minimal “why this touch” string or structured summary from policy + ledger. |
-| **Ships** | Export or internal report: ordered kinds + ids for one `correlation_id`; optional hash chain fields if you committed to them. |
-| **Exit** | Demo walkthrough: signal → send → reply with full trail. |
+| **Ships** | Export or internal report: ordered kinds + ids for one `correlation_id`; optional hash chain fields if you committed to them. **Landed:** `minilab-store::audit` exports a sorted evidence trail, closure summary, touch explanation, and KPI snapshot; `GET /evidence/{correlation_id}/trail` exposes the replay surface. |
+| **Exit** | Demo walkthrough: signal → send → reply with full trail; API response includes summary, explainability, and raw rows for operator review. |
 | **Depends** | S6. |
 
 ---
@@ -190,5 +190,6 @@ After each **major plan** change (or major reality change), append a row and edi
 | Date | Summary of change | Link / notes |
 | ---- | ----------------- | ------------ |
 | *(initial)* | Baseline S0–S11 + optional O1–O3 as written. | — |
+| 2026-05-11 | Landed Slice 7 replay/export surface: evidence trails, touch explanations, KPI snapshot helpers, and `/evidence/{correlation_id}/trail`. | `crates/minilab-store/src/audit.rs`, `crates/minilab-api/src/app.rs` |
 
 **Related:** [Documentation index](../README.md) · [30-day rollout](gtm-30-day-rollout.md) · [Repository layout / split](../repo/layout-and-split-criteria.md)

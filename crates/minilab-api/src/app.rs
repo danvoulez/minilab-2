@@ -14,7 +14,7 @@ use axum::{
 };
 use futures_util::stream;
 use minilab_store::{
-    lower_and_dispatch_execute,
+    export_evidence_trail, lower_and_dispatch_execute,
     reply::{ingest_reply, IngestReplyInput, SendGridParsePayload, TwilioWhatsAppInboundPayload},
     webhook::{validate_sendgrid_signature, validate_twilio_signature},
     HostPairOutcome, InstallReconcileOutcome, OutboundSendOutcome, StoreClient, StoreError,
@@ -107,6 +107,7 @@ pub fn build_app(state: AppState) -> Router {
 
     let outbound_routes = Router::new().route("/send", post(outbound_send));
     let installation_routes = Router::new().route("/{id}/reconcile", post(install_reconcile));
+    let evidence_routes = Router::new().route("/{correlation_id}/trail", get(evidence_trail));
 
     // Act-shaped surface (`POST /host-pairings`) rather than a REST-CRUD
     // mutation on `/hosts/:id/pair` — pairing is a constitutional act, not a
@@ -122,6 +123,7 @@ pub fn build_app(state: AppState) -> Router {
         .nest("/outbound", outbound_routes)
         .nest("/host-pairings", host_pairing_routes)
         .nest("/installations", installation_routes)
+        .nest("/evidence", evidence_routes)
         .nest("/api/agent-runtime", crate::agent_runtime::routes())
         .nest("/mcp", mcp_routes)
         .with_state(state)
@@ -356,6 +358,15 @@ async fn install_reconcile(
     };
 
     Ok(Json(response))
+}
+
+/// Replay and explain one correlation from the append-only evidence ledger.
+async fn evidence_trail(
+    State(state): State<AppState>,
+    axum::extract::Path(correlation_id): axum::extract::Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let trail = export_evidence_trail(&state.store, correlation_id).await?;
+    Ok(Json(trail))
 }
 
 async fn healthz() -> impl IntoResponse {
@@ -750,6 +761,23 @@ mod tests {
             payload["result"]["serverInfo"]["name"],
             "minilab-mcp-command"
         );
+    }
+
+    #[tokio::test]
+    async fn evidence_trail_route_is_mounted() {
+        let app = build_app(test_state("http://127.0.0.1:9".into(), None, None));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/evidence/00000000-0000-0000-0000-000000000000/trail")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     }
 
     #[tokio::test]
