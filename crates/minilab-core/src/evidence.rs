@@ -47,4 +47,12 @@ impl EvidenceKind {
     pub const HOST_PAIR_INITIATED: &'static str = "host.pair.initiated";
     pub const HOST_PAIRED: &'static str = "host.paired";
     pub const HOST_PAIR_FAILED: &'static str = "host.pair_failed";
+
+    // ---- bundle-into-grammar vertical (install.reconcile slice) ------------
+    // Reconcile-shaped act: plan desired/applied convergence, apply each
+    // divergent service step, then close as reconciled or failed.
+    pub const INSTALL_RECONCILE_PLANNED: &'static str = "install.reconcile.planned";
+    pub const INSTALL_RECONCILE_STEP_APPLIED: &'static str = "install.reconcile.step.applied";
+    pub const INSTALL_RECONCILE_RECONCILED: &'static str = "install.reconcile.reconciled";
+    pub const INSTALL_RECONCILE_FAILED: &'static str = "install.reconcile.failed";
 }

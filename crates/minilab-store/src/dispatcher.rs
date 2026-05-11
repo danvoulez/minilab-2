@@ -34,6 +34,9 @@ use uuid::Uuid;
 
 use crate::client::{StoreClient, StoreError};
 use crate::host_pair::{submit_host_pair, HostPairInput, HostPairOutcome};
+use crate::install_reconcile::{
+    submit_install_reconcile, InstallReconcileInput, InstallReconcileOutcome,
+};
 use crate::outbound_orchestrator::{submit_outbound_send, OutboundSendInput, OutboundSendOutcome};
 
 /// Terminal result of dispatching one canonical lowered command.
@@ -41,6 +44,7 @@ use crate::outbound_orchestrator::{submit_outbound_send, OutboundSendInput, Outb
 pub enum DispatchOutcome {
     OutboundSend(OutboundSendOutcome),
     HostPair(HostPairOutcome),
+    InstallReconcile(InstallReconcileOutcome),
 }
 
 impl DispatchOutcome {
@@ -50,6 +54,9 @@ impl DispatchOutcome {
             Self::HostPair(_) => Err(StoreError::Contract(
                 "dispatcher returned host.pair outcome for outbound.send caller".into(),
             )),
+            Self::InstallReconcile(_) => Err(StoreError::Contract(
+                "dispatcher returned install.reconcile outcome for outbound.send caller".into(),
+            )),
         }
     }
 
@@ -58,6 +65,21 @@ impl DispatchOutcome {
             Self::HostPair(outcome) => Ok(outcome),
             Self::OutboundSend(_) => Err(StoreError::Contract(
                 "dispatcher returned outbound.send outcome for host.pair caller".into(),
+            )),
+            Self::InstallReconcile(_) => Err(StoreError::Contract(
+                "dispatcher returned install.reconcile outcome for host.pair caller".into(),
+            )),
+        }
+    }
+
+    pub fn into_install_reconcile(self) -> Result<InstallReconcileOutcome, StoreError> {
+        match self {
+            Self::InstallReconcile(outcome) => Ok(outcome),
+            Self::OutboundSend(_) => Err(StoreError::Contract(
+                "dispatcher returned outbound.send outcome for install.reconcile caller".into(),
+            )),
+            Self::HostPair(_) => Err(StoreError::Contract(
+                "dispatcher returned host.pair outcome for install.reconcile caller".into(),
             )),
         }
     }
@@ -78,6 +100,17 @@ struct HostPairCommandArgs {
     host_id: Uuid,
     challenge: String,
     agent_pubkey: String,
+    correlation_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InstallReconcileCommandArgs {
+    installation_id: Uuid,
+    host_id: Uuid,
+    desired_manifest: Value,
+    #[serde(default)]
+    applied_manifest: Option<Value>,
     correlation_id: Uuid,
 }
 
@@ -156,6 +189,21 @@ pub async fn dispatch_operational_command(
             )
             .await?;
             Ok(DispatchOutcome::HostPair(outcome))
+        }
+        ("install", "reconcile", RuntimeTarget::Platform) => {
+            let args: InstallReconcileCommandArgs = decode_args(&command)?;
+            let outcome = submit_install_reconcile(
+                client,
+                InstallReconcileInput {
+                    installation_id: args.installation_id,
+                    host_id: args.host_id,
+                    desired_manifest: args.desired_manifest,
+                    applied_manifest: args.applied_manifest,
+                    correlation_id: args.correlation_id,
+                },
+            )
+            .await?;
+            Ok(DispatchOutcome::InstallReconcile(outcome))
         }
         _ => Err(StoreError::Contract(format!(
             "unsupported operational command for dispatcher: {}.{} target_runtime={:?}",
