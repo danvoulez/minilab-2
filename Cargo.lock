@@ -1028,6 +1028,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64",
+ "constitutional-runtime",
  "futures-util",
  "hmac",
  "http",
@@ -1046,6 +1047,19 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
+name = "minilab-cli"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
  "uuid",
 ]
 
