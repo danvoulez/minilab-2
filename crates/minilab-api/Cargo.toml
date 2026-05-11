@@ -1,0 +1,31 @@
+[package]
+name = "minilab-api"
+version = "0.1.0"
+edition = "2021"
+description = "Permanent HTTP edge for Minilab webhooks, health, and operations"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+axum = { version = "0.8", features = ["json", "macros", "tokio", "http1"] }
+base64 = "0.22"
+futures-util = "0.3"
+http = "1"
+multer = "3"
+minilab-store = { path = "../minilab-store" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_urlencoded = "0.7"
+thiserror = "2.0"
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["timeout", "util"] }
+tower-http = { version = "0.6", features = ["limit", "request-id", "sensitive-headers", "trace", "util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[dev-dependencies]
+hmac = "0.12"
+http-body-util = "0.1"
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
+sha1 = "0.10"
+sha2 = "0.10"

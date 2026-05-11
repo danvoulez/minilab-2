@@ -1,0 +1,22 @@
+[package]
+name = "constitutional-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "IR, policy, capability, and evidence boundaries for Minilab constitutional execution"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+rusqlite = { version = "0.32", optional = true }
+reqwest = { version = "0.12", optional = true, default-features = false, features = ["json", "blocking", "rustls-tls"] }
+
+[features]
+default = []
+sqlite-evidence = ["dep:rusqlite"]
+supabase-evidence = ["dep:reqwest"]
+
+[dev-dependencies]
+serde_json = "1.0"
+tempfile = "3.10"
