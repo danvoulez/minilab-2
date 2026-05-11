@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod campaign;
 pub mod client;
 pub mod dispatcher;
@@ -17,6 +18,10 @@ pub mod scoring;
 pub mod store;
 pub mod webhook;
 
+pub use audit::{
+    export_evidence_trail, kpi_snapshot, EvidenceTrail, EvidenceTrailRow, EvidenceTrailSummary,
+    KpiSnapshot, TouchExplanation,
+};
 pub use client::{StoreClient, StoreError};
 pub use dispatcher::{
     dispatch_operational_command, lower_and_dispatch_execute, lower_execute_action, DispatchOutcome,
