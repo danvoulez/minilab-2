@@ -1,0 +1,117 @@
+use reqwest::{header, Client};
+use thiserror::Error;
+
+use minilab_core::SimMode;
+
+#[derive(Debug, Error)]
+pub enum StoreError {
+    #[error("http: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("supabase error {status}: {body}")]
+    Supabase { status: u16, body: String },
+    #[error("env var missing: {0}")]
+    Env(String),
+    #[error("invalid env value for {var}: {value}")]
+    InvalidEnv { var: String, value: String },
+    #[error("provider {provider} error {status}: {body}")]
+    Provider {
+        provider: &'static str,
+        status: u16,
+        body: String,
+    },
+    #[error("contract violation: {0}")]
+    Contract(String),
+    #[error("send refused: sim_mode={mode:?} blocks real outbound")]
+    SendBlocked { mode: SimMode },
+}
+
+/// Thin wrapper around a reqwest Client pointed at one Supabase project.
+#[derive(Clone)]
+pub struct StoreClient {
+    pub http: Client,
+    pub base_url: String,
+    pub sim_mode: SimMode,
+}
+
+impl StoreClient {
+    /// Build from explicit values (tests, integration).
+    pub fn new(supabase_url: impl Into<String>, admin_key: impl Into<String>) -> Self {
+        Self::with_mode(supabase_url, admin_key, SimMode::default())
+    }
+
+    pub fn with_mode(
+        supabase_url: impl Into<String>,
+        admin_key: impl Into<String>,
+        sim_mode: SimMode,
+    ) -> Self {
+        let key = admin_key.into();
+        let mut headers = header::HeaderMap::new();
+        headers.insert("apikey", header::HeaderValue::from_str(&key).unwrap());
+        headers.insert(
+            header::AUTHORIZATION,
+            header::HeaderValue::from_str(&format!("Bearer {key}")).unwrap(),
+        );
+        headers.insert(
+            header::CONTENT_TYPE,
+            header::HeaderValue::from_static("application/json"),
+        );
+
+        let http = Client::builder()
+            .default_headers(headers)
+            .build()
+            .expect("reqwest client");
+
+        Self {
+            http,
+            base_url: supabase_url.into(),
+            sim_mode,
+        }
+    }
+
+    /// Build from `SUPABASE_URL` and an elevated server-side Supabase API key.
+    ///
+    /// Key lookup order:
+    /// 1. `SUPABASE_SECRET_KEY` (preferred modern `sb_secret_...` key)
+    /// 2. `SUPABASE_SERVICE_KEY` (legacy JWT `service_role` fallback)
+    ///
+    /// `MINILAB_SIM_MODE` (optional) selects the execution mode; values:
+    /// `production` (default), `replay`, `simulation`, `counterfactual`.
+    pub fn from_env() -> Result<Self, StoreError> {
+        let url =
+            std::env::var("SUPABASE_URL").map_err(|_| StoreError::Env("SUPABASE_URL".into()))?;
+        let key = load_supabase_admin_key()?;
+        let sim_mode = match std::env::var("MINILAB_SIM_MODE").ok().as_deref() {
+            None | Some("") | Some("production") => SimMode::Production,
+            Some("replay") => SimMode::Replay,
+            Some("simulation") => SimMode::Simulation,
+            Some("counterfactual") => SimMode::Counterfactual,
+            Some(other) => {
+                return Err(StoreError::InvalidEnv {
+                    var: "MINILAB_SIM_MODE".into(),
+                    value: other.into(),
+                })
+            }
+        };
+        Ok(Self::with_mode(url, key, sim_mode))
+    }
+
+    pub fn rest(&self, table: &str) -> String {
+        format!("{}/rest/v1/{}", self.base_url, table)
+    }
+
+    pub fn rpc(&self, name: &str) -> String {
+        format!("{}/rest/v1/rpc/{}", self.base_url, name)
+    }
+}
+
+fn load_supabase_admin_key() -> Result<String, StoreError> {
+    std::env::var("SUPABASE_SECRET_KEY")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            std::env::var("SUPABASE_SERVICE_KEY")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .ok_or_else(|| StoreError::Env("SUPABASE_SECRET_KEY or SUPABASE_SERVICE_KEY".into()))
+}

@@ -1,0 +1,26 @@
+[package]
+name = "minilab-store"
+version = "0.1.0"
+edition = "2021"
+description = "Supabase persistence layer for Minilab canonical entities"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+base64 = "0.22"
+constitutional-runtime = { path = "../constitutional-runtime" }
+hmac = "0.12"
+minilab-core = { path = "../minilab-core" }
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.10"
+sha2 = "0.10"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1.0", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { version = "1", features = ["full", "test-util"] }
