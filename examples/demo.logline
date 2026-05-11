@@ -1,0 +1,9 @@
+who = local.operator
+did = logline.walk
+this = {"file":"examples/demo.logline","purpose":"Minilab v0 local probe"}
+when = 2026-05-11T00:00:00Z
+confirmed_by = []
+if_ok = emit scoped receipt and continue
+if_doubt = preserve doubt trace; do not touch the world
+if_not = reject with classified receipt
+status = candidate

@@ -1,0 +1,34 @@
+{
+  "place_id": "chatgpt_workspace",
+  "slug": "chatgpt-workspace",
+  "label": "ChatGPT Workspace",
+  "mode": "premium_assisted_place",
+  "execution_mode": "workspace_agent",
+  "execution_substrate": "chatgpt_business",
+  "default_infer_surface": "chatgpt_workspace",
+  "default_emit_surface": "thread",
+  "fallback_strategy": "governed_handoff",
+  "automatic_fallback": false,
+  "initial_session_status": "active",
+  "allowed_outputs": [
+    "advisory",
+    "proposal",
+    "artifact",
+    "handoff_result"
+  ],
+  "allowed_task_classes": [
+    "advisory",
+    "artifact_generation",
+    "governed_handoff"
+  ],
+  "denied_task_classes": [
+    "canonical_truth_write"
+  ],
+  "requires_confirmation_for": [
+    "material_actions",
+    "terminal_continue"
+  ],
+  "forbidden": [
+    "canonical_truth_write"
+  ]
+}

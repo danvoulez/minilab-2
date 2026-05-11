@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "crates/constitutional-runtime",
+    "crates/minilab-core",
+    "crates/minilab-store",
+    "crates/minilab-api",
+    "crates/minilab-cli",
+]
+resolver = "2"
+

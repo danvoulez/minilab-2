@@ -1,0 +1,21 @@
+[package]
+name = "minilab-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Rust-native CLI body for Minilab constitutional operations"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "minilab"
+path = "src/main.rs"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"

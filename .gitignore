@@ -1,0 +1,8 @@
+/target
+.cargo-target-local
+**/*.rs.bk
+.DS_Store
+
+# Reference bundles (nested/non-workspace artifacts)
+*.zip
+*.docx
