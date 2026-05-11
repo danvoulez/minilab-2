@@ -290,7 +290,22 @@ pub fn plan_operational_program(
     lowerer: &dyn Lowerer,
 ) -> Result<CompiledOperationalPlan, PlanError> {
     let graph = compile_program_to_ir_graph(program)?;
+    plan_ir_graph(graph, program.clone(), manifests, ctx, lowerer)
+}
 
+/// End-to-end plan for an already-compiled IR graph.
+///
+/// This is the companion boundary used by Strong Grammar and other non-textual
+/// ingress surfaces: the caller has already produced canonical IR, but the
+/// graph still must pass the same admissibility, routing, lowering, and
+/// all-or-nothing planning gates as operational grammar programs.
+pub fn plan_ir_graph(
+    graph: IrGraph,
+    program: OperationalProgram,
+    manifests: &[CapabilityManifest],
+    ctx: &AdmissibilityContext,
+    lowerer: &dyn Lowerer,
+) -> Result<CompiledOperationalPlan, PlanError> {
     let mut node_plans = Vec::with_capacity(graph.nodes.len());
     for node in &graph.nodes {
         validate_admissibility(node, manifests, ctx).map_err(|e| {

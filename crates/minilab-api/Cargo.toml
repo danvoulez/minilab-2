@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 axum = { version = "0.8", features = ["json", "macros", "tokio", "http1"] }
 base64 = "0.22"
+constitutional-runtime = { path = "../constitutional-runtime" }
 futures-util = "0.3"
 http = "1"
 multer = "3"

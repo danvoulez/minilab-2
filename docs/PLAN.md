@@ -297,7 +297,7 @@ compiles to a valid `IrGraph`, passes `validate_admissibility`, produces a `Comp
 
 ### Phase E — Agent Runtime backend (1.5 weeks)
 
-**Status update (2026-05-11).** Existing Agent Runtime and MCP handlers are now mounted in `build_app` at `/api/agent-runtime/*` and `/mcp/*`. The remaining Phase E work is the full NL→candidate→IR→validate→plan→execute→evidence pipeline and bypass tests.
+**Status update (2026-05-11).** Existing Agent Runtime and MCP handlers are mounted in `build_app` at `/api/agent-runtime/*` and `/mcp/*`. The first governed NL→candidate→Strong IR→admissibility→plan→scripted execute→evidence pipeline is now landed for advisory, artifact, and proposal-shaped messages; session snapshots expose `runtime_pipeline` with `agent.message.received`, `agent.candidate.classified`, `agent.pipeline.admitted`, node dispatch, and `agent.response.emitted` markers. Remaining Phase E work is replacing the scripted dispatcher with the live `RealDispatcher` path for material candidates and expanding classifier coverage beyond v0 heuristics.
 
 **Goal.** Phase 5 of the surgical manual. Humans speak natural language; the runtime speaks disciplined action. Close the ingress.
 
