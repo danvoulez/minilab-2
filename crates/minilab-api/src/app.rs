@@ -122,6 +122,8 @@ pub fn build_app(state: AppState) -> Router {
         .nest("/outbound", outbound_routes)
         .nest("/host-pairings", host_pairing_routes)
         .nest("/installations", installation_routes)
+        .nest("/api/agent-runtime", crate::agent_runtime::routes())
+        .nest("/mcp", mcp_routes)
         .with_state(state)
         .layer(middleware)
 }
@@ -627,6 +629,127 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn agent_runtime_message_route_records_runtime_pipeline() {
+        let app = build_app(test_state("http://127.0.0.1:9".into(), None, None));
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/agent-runtime/places/chatgpt_workspace/messages")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "text": "summarize the current runtime state",
+                            "appId": "chatgpt_workspace_agent"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let ack: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(ack["output_kind"], "advisory");
+        let session_id = ack["session_id"].as_str().expect("session id");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/api/agent-runtime/sessions/{session_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let snapshot: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(snapshot["outputKind"], "advisory");
+        assert_eq!(
+            snapshot["runtimePipeline"]["candidateKind"],
+            "strong_system_review"
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_runtime_place_and_session_list_routes_are_mounted() {
+        let app = build_app(test_state("http://127.0.0.1:9".into(), None, None));
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/agent-runtime/places/chatgpt_workspace")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let profile: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(profile["execution_substrate"], "chatgpt_business");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/agent-runtime/sessions")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn mcp_command_route_is_mounted() {
+        let app = build_app(test_state("http://127.0.0.1:9".into(), None, None));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/mcp/command")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "initialize",
+                            "params": {}
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            payload["result"]["serverInfo"]["name"],
+            "minilab-mcp-command"
+        );
     }
 
     #[tokio::test]

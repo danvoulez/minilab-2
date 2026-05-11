@@ -785,7 +785,7 @@ impl AgentRuntimeService {
                             }),
                     );
             }
-            snapshot.runtime_pipeline = Some(pipeline);
+            snapshot.runtime_pipeline = Some(pipeline.clone());
         })?;
         Ok(())
     }
@@ -1219,8 +1219,21 @@ fn push_audit_event(snapshot: &mut AgentRuntimeSessionSnapshot, kind: &str, summ
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/places/{place_id}", get(get_place))
         .route("/places/{place_id}/messages", post(post_message))
+        .route("/sessions", get(list_sessions))
         .route("/sessions/{session_id}", get(get_session))
+}
+
+async fn get_place(
+    State(state): State<AppState>,
+    Path(place_id): Path<String>,
+) -> Result<Json<PlaceProfile>, ApiError> {
+    let profile = state
+        .agent_runtime
+        .resolve_profile(&place_id)?
+        .ok_or_else(|| ApiError::bad_request(format!("unknown place `{place_id}`")))?;
+    Ok(Json(profile))
 }
 
 async fn post_message(
@@ -1230,6 +1243,12 @@ async fn post_message(
 ) -> Result<Json<AgentRuntimeSendAck>, ApiError> {
     let ack = state.agent_runtime.submit_message(&place_id, body)?;
     Ok(Json(ack))
+}
+
+async fn list_sessions(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<AgentRuntimeSessionSnapshot>>, ApiError> {
+    Ok(Json(state.agent_runtime.list_sessions()?))
 }
 
 async fn get_session(

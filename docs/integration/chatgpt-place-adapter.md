@@ -506,3 +506,21 @@ If OpenAI changes those assumptions, this memo should be amended before implemen
 - Local MCP is unsupported; only remote servers are supported.
 - `Agent mode` should not be assumed to use custom apps for write actions.
 - Published app action sets should be treated as reviewable operational surfaces rather than ambient capability: new actions are disabled by default, updates to existing actions are shown as diffs, and MCP-backed action changes require explicit review / refresh before they are enabled.
+
+---
+
+## 10. Landed HTTP surface — 2026-05 sprint
+
+The adapter now has a first in-repo proving surface in `minilab-api`:
+
+| Surface | Method/path | Purpose |
+|---|---|---|
+| Agent profile | `GET /api/agent-runtime/places/{place_id}` | Resolves the embedded `PlaceProfile` for the ChatGPT-backed Place. |
+| Agent message | `POST /api/agent-runtime/places/{place_id}/messages` | Opens or resumes an official Minilab agent session, classifies the output, and runs the candidate through Strong Grammar → IR → plan → scripted dispatch evidence before returning the acknowledgement. |
+| Session list | `GET /api/agent-runtime/sessions` | Lists in-memory session snapshots for operator/debugging visibility. |
+| Session read | `GET /api/agent-runtime/sessions/{session_id}` | Reads the official session/run/checkpoint snapshot, including runtime pipeline evidence. |
+| MCP query | `POST /mcp/query` | Remote MCP read surface for profile/session/timeline/doc visibility. |
+| MCP command | `POST /mcp/command` | Remote MCP governed-command surface; stages proposals and confirmations, never direct execution. |
+| MCP artifacts | `POST /mcp/artifacts` | Remote MCP artifact/result ingress; normalizes output into closed output classes. |
+
+This is still intentionally in-memory and adapter-shaped. It proves the boundary and route contract without claiming durable agent-session storage. The next sprint should move `AgentRuntimeStore` behind the same evidence/persistence discipline used by the constitutional slices.
