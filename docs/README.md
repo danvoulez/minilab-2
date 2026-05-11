@@ -27,6 +27,7 @@ Read in this order if you are new:
 | 7     | [minilab/canonical-entities.md](minilab/canonical-entities.md) | GTM data model, evidence kinds, opt-out rules                                   |
 | 8     | [runtime/crate-reference.md](runtime/crate-reference.md)       | Rust crate modules, features, key types                                         |
 | —     | [repo/layout-and-split-criteria.md](repo/layout-and-split-criteria.md) | Why one repo now; when and how to split later                           |
+| —     | [integration/adr-10-pr1-5b1-retrospective.md](integration/adr-10-pr1-5b1-retrospective.md) | Consolidation retrospective for PRs 1–5b.1 and Phase A module audit             |
 | —     | [../migrations/README.md](../migrations/README.md)             | Migration order, rationale, and operational notes                               |
 | —     | [../migrations/001_minilab_canonical.sql](../migrations/001_minilab_canonical.sql) | Initial Postgres DDL for canonical GTM entities                      |
 
@@ -46,6 +47,7 @@ Read in this order if you are new:
 | Infra bring-up and install/update discipline | [infra/overview.md](infra/overview.md), [infra/bringup-checklist.md](infra/bringup-checklist.md) |
 | Full Minilab thesis (narrative)             | [minilab/business-runtime.md](minilab/business-runtime.md) |
 | Slice plan (v1 end + optional O1–O3)        | [operations/slice-roadmap.md](operations/slice-roadmap.md) |
+| PRs 1–5b.1 consolidation baseline           | [integration/adr-10-pr1-5b1-retrospective.md](integration/adr-10-pr1-5b1-retrospective.md) |
 | Monorepo vs future split                    | [repo/layout-and-split-criteria.md](repo/layout-and-split-criteria.md) |
 
 
