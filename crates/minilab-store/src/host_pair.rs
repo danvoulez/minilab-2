@@ -270,7 +270,7 @@ struct HostRow {
 }
 
 async fn fetch_host(client: &StoreClient, host_id: Uuid) -> Result<Option<HostRow>, StoreError> {
-    let rows: Vec<Value> = client
+    let resp = client
         .http
         .get(format!(
             "{}?id=eq.{}&select=retired_at,pairing_token_hash,canon_version,elastic_version&limit=1",
@@ -278,9 +278,16 @@ async fn fetch_host(client: &StoreClient, host_id: Uuid) -> Result<Option<HostRo
             host_id
         ))
         .send()
-        .await?
-        .json::<Vec<Value>>()
         .await?;
+
+    let status = resp.status().as_u16();
+    let body = resp.text().await?;
+    if status >= 300 {
+        return Err(StoreError::Supabase { status, body });
+    }
+    let rows: Vec<Value> = serde_json::from_str(&body).map_err(|err| {
+        StoreError::Contract(format!("host lookup returned invalid JSON: {err}: {body}"))
+    })?;
 
     Ok(rows.into_iter().next().map(|r| HostRow {
         retired_at: r["retired_at"].as_str().map(str::to_owned),
@@ -297,16 +304,25 @@ async fn prior_initiated_exists(
     host_id: Uuid,
     challenge_hash: &str,
 ) -> Result<bool, StoreError> {
-    let rows: Vec<Value> = client
+    let resp = client
         .http
         .get(format!(
             "{}?kind=eq.host.pair.initiated&order=created_at.desc&limit=50",
             client.rest("evidence_ledger")
         ))
         .send()
-        .await?
-        .json::<Vec<Value>>()
         .await?;
+
+    let status = resp.status().as_u16();
+    let body = resp.text().await?;
+    if status >= 300 {
+        return Err(StoreError::Supabase { status, body });
+    }
+    let rows: Vec<Value> = serde_json::from_str(&body).map_err(|err| {
+        StoreError::Contract(format!(
+            "evidence replay lookup returned invalid JSON: {err}: {body}"
+        ))
+    })?;
 
     for row in rows {
         let payload = &row["payload"];

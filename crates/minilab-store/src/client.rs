@@ -1,4 +1,4 @@
-use reqwest::{header, Client};
+use reqwest::{header, Client, Url};
 use thiserror::Error;
 
 use minilab_core::SimMode;
@@ -44,6 +44,7 @@ impl StoreClient {
         admin_key: impl Into<String>,
         sim_mode: SimMode,
     ) -> Self {
+        let base_url = supabase_url.into();
         let key = admin_key.into();
         let mut headers = header::HeaderMap::new();
         headers.insert("apikey", header::HeaderValue::from_str(&key).unwrap());
@@ -56,14 +57,16 @@ impl StoreClient {
             header::HeaderValue::from_static("application/json"),
         );
 
-        let http = Client::builder()
-            .default_headers(headers)
-            .build()
-            .expect("reqwest client");
+        let mut builder = Client::builder().default_headers(headers);
+        if is_loopback_url(&base_url) {
+            builder = builder.no_proxy();
+        }
+
+        let http = builder.build().expect("reqwest client");
 
         Self {
             http,
-            base_url: supabase_url.into(),
+            base_url,
             sim_mode,
         }
     }
@@ -102,6 +105,22 @@ impl StoreClient {
     pub fn rpc(&self, name: &str) -> String {
         format!("{}/rest/v1/rpc/{}", self.base_url, name)
     }
+}
+
+fn is_loopback_url(base_url: &str) -> bool {
+    let Ok(url) = Url::parse(base_url) else {
+        return false;
+    };
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    host.eq_ignore_ascii_case("localhost")
+        || host == "::1"
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
 }
 
 fn load_supabase_admin_key() -> Result<String, StoreError> {
