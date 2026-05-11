@@ -122,8 +122,6 @@ pub fn build_app(state: AppState) -> Router {
         .nest("/outbound", outbound_routes)
         .nest("/host-pairings", host_pairing_routes)
         .nest("/installations", installation_routes)
-        .nest("/api/agent-runtime", crate::agent_runtime::routes())
-        .nest("/mcp", mcp_routes)
         .with_state(state)
         .layer(middleware)
 }

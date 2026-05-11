@@ -53,8 +53,8 @@ The huge-into-grammar ADR explicitly sanctions the coexistence of legacy paths d
 
 ### 1.4 What is missing entirely
 
-- **Strong Grammar textual syntax.** JSON v0 compiler is landed; surface syntax beyond JSON remains future work.
-- **Agent Runtime full NL→IR execution pipeline.** The HTTP route is mounted; classifier-to-IR/evidence bypass prevention remains future work.
+- **Strong Grammar** (Phase 4 of the surgical manual at transcript §5400). No AST, no parser, no compiler. Zero lines.
+- **Agent Runtime backend** (Phase 5). No `POST /api/agent-runtime/places/:place_id/messages` route. Zero lines.
 - **Runtime-level SimMode branching** — counterfactual scenarios cannot fork state today.
 - **Real ed25519 executor for `host.pair`** — production path still uses the mock pairer.
 - **Real provider executors for `outbound.send`** — SendGrid/Twilio adapters exist as ingress, not as outbound execution substrate honoring capability envelopes.
