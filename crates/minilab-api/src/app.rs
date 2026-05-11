@@ -17,7 +17,7 @@ use minilab_store::{
     lower_and_dispatch_execute,
     reply::{ingest_reply, IngestReplyInput, SendGridParsePayload, TwilioWhatsAppInboundPayload},
     webhook::{validate_sendgrid_signature, validate_twilio_signature},
-    HostPairOutcome, OutboundSendOutcome, StoreClient, StoreError,
+    HostPairOutcome, InstallReconcileOutcome, OutboundSendOutcome, StoreClient, StoreError,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -105,6 +105,7 @@ pub fn build_app(state: AppState) -> Router {
         .layer(RequestBodyLimitLayer::new(config.sendgrid_max_body_bytes));
 
     let outbound_routes = Router::new().route("/send", post(outbound_send));
+    let installation_routes = Router::new().route("/{id}/reconcile", post(install_reconcile));
 
     // Act-shaped surface (`POST /host-pairings`) rather than a REST-CRUD
     // mutation on `/hosts/:id/pair` — pairing is a constitutional act, not a
@@ -116,6 +117,7 @@ pub fn build_app(state: AppState) -> Router {
         .nest("/webhooks", twilio_routes.merge(sendgrid_routes))
         .nest("/outbound", outbound_routes)
         .nest("/host-pairings", host_pairing_routes)
+        .nest("/installations", installation_routes)
         .with_state(state)
         .layer(middleware)
 }
@@ -259,6 +261,91 @@ async fn outbound_send(
             correlation_id,
             reason_code,
             detail,
+        },
+    };
+
+    Ok(Json(response))
+}
+
+#[derive(Debug, Deserialize)]
+struct InstallReconcileRequest {
+    host_id: Uuid,
+    desired_manifest: serde_json::Value,
+    #[serde(default)]
+    applied_manifest: Option<serde_json::Value>,
+    #[serde(default)]
+    correlation_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum InstallReconcileResponse {
+    Reconciled {
+        correlation_id: Uuid,
+        desired_hash: String,
+        applied_steps: usize,
+        skipped_steps: usize,
+    },
+    Failed {
+        correlation_id: Uuid,
+        desired_hash: String,
+        reason_code: String,
+        reason_detail: String,
+        phase: &'static str,
+        applied_steps: usize,
+    },
+}
+
+/// Constitutional `install.reconcile` proving surface. See
+/// `docs/integration/reconcile-anatomy.md`.
+async fn install_reconcile(
+    State(state): State<AppState>,
+    axum::extract::Path(installation_id): axum::extract::Path<Uuid>,
+    Json(body): Json<InstallReconcileRequest>,
+) -> Result<Json<InstallReconcileResponse>, ApiError> {
+    let correlation_id = body.correlation_id.unwrap_or_else(Uuid::new_v4);
+    let mut params = BTreeMap::new();
+    params.insert("installation_id".into(), json!(installation_id));
+    params.insert("host_id".into(), json!(body.host_id));
+    params.insert("desired_manifest".into(), body.desired_manifest);
+    if let Some(applied_manifest) = body.applied_manifest {
+        params.insert("applied_manifest".into(), applied_manifest);
+    }
+    params.insert("correlation_id".into(), json!(correlation_id));
+
+    let outcome = lower_and_dispatch_execute(
+        &state.store,
+        "api-install-reconcile",
+        "install.reconcile",
+        params,
+    )
+    .await?;
+    let outcome = outcome.into_install_reconcile()?;
+
+    let response = match outcome {
+        InstallReconcileOutcome::Reconciled {
+            desired_hash,
+            applied_steps,
+            skipped_steps,
+        } => InstallReconcileResponse::Reconciled {
+            correlation_id,
+            desired_hash,
+            applied_steps,
+            skipped_steps,
+        },
+        InstallReconcileOutcome::Failed {
+            desired_hash,
+            reason_code,
+            reason_detail,
+            phase,
+            applied_steps,
+        } => InstallReconcileResponse::Failed {
+            correlation_id,
+            desired_hash,
+            reason_code,
+            reason_detail,
+            phase,
+            applied_steps,
         },
     };
 

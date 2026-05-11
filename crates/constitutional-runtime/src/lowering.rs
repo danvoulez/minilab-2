@@ -295,6 +295,23 @@ impl MinilabRuntimeLowerer {
                             provider_cmd("outbound", "send", args),
                         ));
                     }
+                    // `install.reconcile` is the first Reconcile-shaped act:
+                    // the runtime plans desired/applied convergence, applies
+                    // sub-steps, and closes with reconciled evidence.
+                    if id.dotted_str() == "install.reconcile" {
+                        return Ok((
+                            plan(
+                                false,
+                                Some(700),
+                                vec![
+                                    "install.reconcile.planned",
+                                    "install.reconcile.step.applied",
+                                    "install.reconcile.reconciled",
+                                ],
+                            ),
+                            platform_cmd("install", "reconcile", args),
+                        ));
+                    }
                 }
 
                 let (ns, verb) = match action {
@@ -711,6 +728,56 @@ mod tests {
         assert!(cmd.args.contains_key("host_id"));
         assert!(cmd.args.contains_key("challenge"));
         assert!(cmd.args.contains_key("agent_pubkey"));
+        assert!(cmd.args.contains_key("correlation_id"));
+    }
+
+    #[test]
+    fn install_reconcile_lowers_to_platform_target_with_reconcile_contract() {
+        let mut params = serde_json::Map::new();
+        params.insert(
+            "installation_id".into(),
+            json!("00000000-0000-0000-0000-000000000030"),
+        );
+        params.insert(
+            "host_id".into(),
+            json!("00000000-0000-0000-0000-000000000001"),
+        );
+        params.insert(
+            "desired_manifest".into(),
+            json!({"payload_services": [{"id": "api", "version": "1"}]}),
+        );
+        params.insert(
+            "correlation_id".into(),
+            json!("33333333-3333-3333-3333-333333333333"),
+        );
+        let n = node(
+            "install-reconcile-1",
+            IRPrimitive::Execute {
+                action: ActionKind::Canonical(
+                    CanonicalActionId::new("install", "reconcile").unwrap(),
+                ),
+                params,
+            },
+        );
+        let (plan, cmd) = MinilabRuntimeLowerer.lower(&n).unwrap();
+
+        assert_eq!(
+            (cmd.namespace.as_str(), cmd.verb.as_str()),
+            ("install", "reconcile")
+        );
+        assert_eq!(cmd.target_runtime, RuntimeTarget::Platform);
+        assert_eq!(
+            plan.evidence.required_kinds,
+            vec![
+                "install.reconcile.planned".to_string(),
+                "install.reconcile.step.applied".to_string(),
+                "install.reconcile.reconciled".to_string(),
+            ]
+        );
+        assert!(!plan.requires_confirmation);
+        assert!(cmd.args.contains_key("installation_id"));
+        assert!(cmd.args.contains_key("host_id"));
+        assert!(cmd.args.contains_key("desired_manifest"));
         assert!(cmd.args.contains_key("correlation_id"));
     }
 

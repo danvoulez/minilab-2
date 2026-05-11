@@ -21,6 +21,7 @@ This plan has two parts. §1–§2 audit what actually exists and propose the ri
 | `RuntimeFailure` structured flow | landed | present in `DispatchOutcome::Failure.runtime_failure` |
 | Vertical slice — `outbound.send` | landed | `outbound_orchestrator.rs`, 5-station evidence chain |
 | Vertical slice — `host.pair` | landed | `host_pair.rs`, 5-station evidence chain |
+| Vertical slice — `install.reconcile` | landed | `install_reconcile.rs`, Reconcile-shaped planned/step/reconciled evidence chain |
 | Real dispatcher bridging to live slices | landed | `real_dispatcher.rs` (335) |
 | Proving surface (act-shaped HTTP) | landed | `minilab-api/src/app.rs` — `POST /outbound/send`, `POST /host-pairings` |
 | Evidence ledger (sqlite + supabase) | landed | `evidence_sqlite.rs`, `evidence_supabase.rs` |
@@ -54,7 +55,6 @@ The huge-into-grammar ADR explicitly sanctions the coexistence of legacy paths d
 
 - **Strong Grammar** (Phase 4 of the surgical manual at transcript §5400). No AST, no parser, no compiler. Zero lines.
 - **Agent Runtime backend** (Phase 5). No `POST /api/agent-runtime/places/:place_id/messages` route. Zero lines.
-- **Third vertical slice** — `install.reconcile` or equivalent Reconcile-shaped act. The slice-pattern memo explicitly flags this as the anatomy variant waiting to be proved.
 - **Runtime-level SimMode branching** — counterfactual scenarios cannot fork state today.
 - **Real ed25519 executor for `host.pair`** — production path still uses the mock pairer.
 - **Real provider executors for `outbound.send`** — SendGrid/Twilio adapters exist as ingress, not as outbound execution substrate honoring capability envelopes.
@@ -240,13 +240,15 @@ Each phase has a recut, a success criterion, and an explicit out-of-scope list m
 
 ### Phase C — Third slice: `install.reconcile` (Reconcile-anatomy pioneer) (1 week)
 
+**Status update (2026-05-11).** Landed as the first Reconcile-shaped slice: orchestrator, migration, lowering/dispatch/API surface, integration tests, and `docs/integration/reconcile-anatomy.md`.
+
 **Goal.** Prove the Reconcile-shaped slice anatomy that `docs/integration/slice-pattern.md` §5 explicitly calls out as future work. This is the constitutional reason this phase is before reply-refactor and Strong Grammar: the Reconcile anatomy is the missing proof alongside the admissibility-governed anatomy already proved by `outbound.send` and `host.pair`.
 
 **In scope.**
 - Migration `011_install_reconcile_slice.sql` if needed.
 - Orchestrator: `submit_install_reconcile(client, input) -> InstallReconcileOutcome`.
 - Evidence kinds: `install.reconcile.planned`, `install.reconcile.step.applied`, `install.reconcile.reconciled`, `install.reconcile.failed`.
-- Lowerer branch in `constitutional-runtime/src/compile/lowering.rs` for `ActionKind::Canonical("install.reconcile")`.
+- Lowerer branch in `constitutional-runtime/src/lowering.rs` for `ActionKind::Canonical("install.reconcile")`.
 - Proving surface: `POST /installations/:id/reconcile` in `minilab-api`.
 - Integration tests (per slice-pattern §3): happy path, sub-step failure, idempotent re-run, partial convergence.
 - New memo: `docs/integration/reconcile-anatomy.md` documenting the Reconcile-shaped variant per slice-pattern §5.
@@ -405,7 +407,7 @@ These are not new rules — they're the disciplines the PR-1-through-5b.1 arc al
 |---|---|---|---|
 | A — Consolidation tail | 2 days | PRs 1–5b.1 landed | ADR 10, clippy-clean workspace |
 | B — Module reorganization | 3 days | A | New src/ layout, identical behavior |
-| C — `install.reconcile` slice | 1 week | A | Reconcile anatomy proved, third slice |
+| C — `install.reconcile` slice | shipped 2026-05-11 | A | Reconcile anatomy proved, third slice |
 | D — Strong Grammar compiler | 2 weeks | B | IR graphs from Strong programs |
 | E — Agent Runtime backend | 1.5 weeks | D | NL → IR → evidence pipeline |
 | F — Business Canon wired | 1.5 weeks | D (for validation surface) | Canon is runtime authority |
