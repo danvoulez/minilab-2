@@ -58,8 +58,8 @@ pub use plan_executor::{
     Dispatcher, ExecutionReport, NodeExecutionResult, NodeOutcome,
 };
 pub use planning_compiler::{
-    compile_program_to_ir_graph, plan_operational_program, CompileError, CompiledOperationalPlan,
-    Edge, IrGraph, NodePlan, PlanError,
+    compile_program_to_ir_graph, plan_ir_graph, plan_operational_program, CompileError,
+    CompiledOperationalPlan, Edge, IrGraph, NodePlan, PlanError,
 };
 pub use policy::PolicyClass;
 pub use refs::{DataRef, NodeId, PolicyId, SurfaceRef, TargetRef};

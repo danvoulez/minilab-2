@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
 };
 
@@ -11,6 +11,12 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
+
+use constitutional_runtime::{
+    compile_strong_json_to_ir_graph, execute_compiled_plan, plan_ir_graph, AdmissibilityContext,
+    CapabilityManifest, DispatchOutcome, Dispatcher, MinilabRuntimeLowerer, NodeId,
+    OperationalCommand, OperationalProgram, PrimitiveName, RuntimeTarget,
+};
 
 use crate::{app::AppState, error::ApiError};
 
@@ -133,6 +139,29 @@ pub struct AgentRuntimeExternalTool {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentPipelineEvidence {
+    pub kind: String,
+    pub correlation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuntimePipelineSummary {
+    pub correlation_id: String,
+    pub candidate_kind: String,
+    pub ir_node_count: usize,
+    pub planned_node_count: usize,
+    pub dispatched_node_count: usize,
+    pub fully_succeeded: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<AgentPipelineEvidence>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentRuntimeSessionSnapshot {
     pub session_id: String,
     pub session_status: String,
@@ -168,6 +197,8 @@ pub struct AgentRuntimeSessionSnapshot {
     pub audit_trail: Option<AgentRuntimeAuditTrail>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_tool: Option<AgentRuntimeExternalTool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_pipeline: Option<AgentRuntimePipelineSummary>,
     pub pending: bool,
 }
 
@@ -258,7 +289,11 @@ impl AgentRuntimeService {
             return Err(ApiError::bad_request("message text cannot be empty"));
         }
         let draft = classify_message(text, profile, &request.files);
-        self.record_draft(profile, request.session_id, request.app_id, draft)
+        let output_kind = draft.output_kind.clone();
+        let ack = self.record_draft(profile, request.session_id, request.app_id, draft)?;
+        let pipeline = run_governed_message_pipeline(profile, text, &ack.session_id, &output_kind)?;
+        self.attach_runtime_pipeline(&ack.session_id, pipeline)?;
+        Ok(ack)
     }
 
     pub fn submit_place_intent(
@@ -677,6 +712,7 @@ impl AgentRuntimeService {
                 substrate: Some(profile.execution_substrate.clone()),
                 supervision: Some("place_mediated".into()),
             }),
+            runtime_pipeline: None,
             pending: false,
         };
 
@@ -724,6 +760,34 @@ impl AgentRuntimeService {
                     .map_err(|err| ApiError::upstream(format!("failed to encode policy: {err}")))?,
             }),
         })
+    }
+
+    fn attach_runtime_pipeline(
+        &self,
+        session_id: &str,
+        pipeline: AgentRuntimePipelineSummary,
+    ) -> Result<(), ApiError> {
+        self.update_snapshot(Some(session_id), None, |snapshot| {
+            if let Some(audit) = snapshot.audit_trail.as_mut() {
+                audit.latest_event = Some(format!(
+                    "Agent pipeline closed with {} planned nodes and {} dispatched nodes.",
+                    pipeline.planned_node_count, pipeline.dispatched_node_count
+                ));
+                audit
+                    .recent_events
+                    .extend(
+                        pipeline
+                            .evidence
+                            .iter()
+                            .map(|event| AgentRuntimeAuditEvent {
+                                kind: Some(event.kind.clone()),
+                                summary: event.summary.clone(),
+                            }),
+                    );
+            }
+            snapshot.runtime_pipeline = Some(pipeline);
+        })?;
+        Ok(())
     }
 
     pub fn get_session(
@@ -909,6 +973,180 @@ fn classify_message(
         audit_summary: "Output normalized as advisory.".into(),
     }
 }
+fn run_governed_message_pipeline(
+    profile: &PlaceProfile,
+    text: &str,
+    session_id: &str,
+    output_kind: &str,
+) -> Result<AgentRuntimePipelineSummary, ApiError> {
+    let correlation_id = format!("agent-message:{session_id}");
+    let candidate_kind = classify_candidate_kind(text, output_kind);
+    let strong_json = strong_candidate_json(profile, text, output_kind);
+    let graph = compile_strong_json_to_ir_graph(&strong_json).map_err(|err| {
+        ApiError::bad_request(format!("agent candidate did not compile to IR: {err}"))
+    })?;
+    let manifests = vec![agent_runtime_manifest(profile)];
+    let ctx = AdmissibilityContext::default();
+    let plan = plan_ir_graph(
+        graph.clone(),
+        OperationalProgram::default(),
+        &manifests,
+        &ctx,
+        &MinilabRuntimeLowerer,
+    )
+    .map_err(|err| ApiError::bad_request(format!("agent candidate was not admissible: {err}")))?;
+    let report = execute_compiled_plan(
+        &plan,
+        &AgentRuntimeScriptedDispatcher {
+            correlation_id: correlation_id.clone(),
+        },
+    );
+
+    let mut evidence = vec![
+        AgentPipelineEvidence {
+            kind: "agent.message.received".into(),
+            correlation_id: correlation_id.clone(),
+            node_id: None,
+            summary: format!("Message received for {}.", profile.place_id),
+        },
+        AgentPipelineEvidence {
+            kind: "agent.candidate.classified".into(),
+            correlation_id: correlation_id.clone(),
+            node_id: None,
+            summary: format!("Candidate classified as {candidate_kind}."),
+        },
+        AgentPipelineEvidence {
+            kind: "agent.pipeline.admitted".into(),
+            correlation_id: correlation_id.clone(),
+            node_id: None,
+            summary: format!("IR admitted with {} nodes.", graph.len()),
+        },
+    ];
+    evidence.extend(report.results.iter().map(|result| AgentPipelineEvidence {
+        kind: if result.dispatched {
+            "agent.node.dispatched".into()
+        } else {
+            "agent.node.skipped".into()
+        },
+        correlation_id: correlation_id.clone(),
+        node_id: Some(result.node_id.0.clone()),
+        summary: format!(
+            "{}.{} -> {:?}",
+            result.command.namespace, result.command.verb, result.outcome
+        ),
+    }));
+    evidence.push(AgentPipelineEvidence {
+        kind: "agent.response.emitted".into(),
+        correlation_id: correlation_id.clone(),
+        node_id: None,
+        summary: format!("Response emitted as {output_kind} after IR planning."),
+    });
+
+    Ok(AgentRuntimePipelineSummary {
+        correlation_id,
+        candidate_kind,
+        ir_node_count: graph.len(),
+        planned_node_count: plan.node_plans.len(),
+        dispatched_node_count: report
+            .results
+            .iter()
+            .filter(|result| result.dispatched)
+            .count(),
+        fully_succeeded: report.fully_succeeded(),
+        evidence,
+    })
+}
+
+fn classify_candidate_kind(text: &str, output_kind: &str) -> String {
+    let lower = text.to_ascii_lowercase();
+    if output_kind == "proposal" {
+        "operational_confirm_candidate".into()
+    } else if lower.contains("drift") {
+        "strong_drift_review".into()
+    } else {
+        "strong_system_review".into()
+    }
+}
+
+fn strong_candidate_json(profile: &PlaceProfile, text: &str, output_kind: &str) -> String {
+    if output_kind == "proposal" {
+        return serde_json::json!({
+            "Confirm": {
+                "role": "operator",
+                "action": {
+                    "action": "agent.propose",
+                    "params": {
+                        "place_id": profile.place_id.clone(),
+                        "message": text
+                    }
+                }
+            }
+        })
+        .to_string();
+    }
+
+    let body = serde_json::json!({
+        "target": profile.place_id.clone(),
+        "pipeline": ["Collect", "Compress", "Classify", "Prioritize"],
+        "on_success": { "Emit": profile.default_emit_surface.clone() }
+    });
+    if text.to_ascii_lowercase().contains("drift") {
+        serde_json::json!({ "DriftReview": body }).to_string()
+    } else {
+        serde_json::json!({ "SystemReview": body }).to_string()
+    }
+}
+
+fn agent_runtime_manifest(profile: &PlaceProfile) -> CapabilityManifest {
+    CapabilityManifest {
+        substrate_id: profile.execution_substrate.clone(),
+        substrate_version: "agent-runtime-v0".into(),
+        supported_primitives: BTreeSet::from_iter([
+            PrimitiveName::Observe,
+            PrimitiveName::Collect,
+            PrimitiveName::Fetch,
+            PrimitiveName::Compress,
+            PrimitiveName::Classify,
+            PrimitiveName::Prioritize,
+            PrimitiveName::Compare,
+            PrimitiveName::Route,
+            PrimitiveName::Schedule,
+            PrimitiveName::Execute,
+            PrimitiveName::Emit,
+            PrimitiveName::Persist,
+            PrimitiveName::Confirm,
+            PrimitiveName::Cancel,
+            PrimitiveName::Reconcile,
+        ]),
+        declared_guarantees: BTreeSet::from(["evidence.write".into()]),
+        ..Default::default()
+    }
+}
+
+struct AgentRuntimeScriptedDispatcher {
+    correlation_id: String,
+}
+
+impl Dispatcher for AgentRuntimeScriptedDispatcher {
+    fn dispatch(&self, node_id: &NodeId, command: &OperationalCommand) -> DispatchOutcome {
+        let target_runtime = match &command.target_runtime {
+            RuntimeTarget::MinilabOperationalGrammar => "operational",
+            RuntimeTarget::Mcp => "mcp",
+            RuntimeTarget::Shell => "shell",
+            RuntimeTarget::Cloud => "cloud",
+            RuntimeTarget::Platform => "platform",
+            RuntimeTarget::Provider => "provider",
+        };
+        DispatchOutcome::Success {
+            evidence_ref: Some(format!("{}:{}", self.correlation_id, node_id.0)),
+            detail: Some(serde_json::json!({
+                "target_runtime": target_runtime,
+                "namespace": command.namespace.clone(),
+                "verb": command.verb.clone()
+            })),
+        }
+    }
+}
 
 fn policy_from_profile(profile: &PlaceProfile) -> AgentRuntimeEffectivePolicy {
     AgentRuntimeEffectivePolicy {
@@ -1039,6 +1277,19 @@ mod tests {
             .expect("send should succeed");
         assert_eq!(ack.output_kind, "proposal");
         assert_eq!(ack.status, "waiting");
+        let snapshot = service
+            .get_session(&ack.session_id)
+            .expect("read should succeed")
+            .expect("session should exist");
+        let pipeline = snapshot
+            .runtime_pipeline
+            .as_ref()
+            .expect("proposal output must still touch IR before response");
+        assert_eq!(pipeline.candidate_kind, "operational_confirm_candidate");
+        assert!(pipeline
+            .evidence
+            .iter()
+            .any(|event| event.kind == "agent.response.emitted"));
     }
 
     #[test]
@@ -1061,6 +1312,16 @@ mod tests {
             .expect("read should succeed")
             .expect("session should exist");
         assert_eq!(snapshot.output_kind.as_deref(), Some("advisory"));
+        let pipeline = snapshot
+            .runtime_pipeline
+            .as_ref()
+            .expect("advisory output must pass through the runtime pipeline");
+        assert_eq!(pipeline.candidate_kind, "strong_system_review");
+        assert!(pipeline.fully_succeeded);
+        assert!(pipeline
+            .evidence
+            .iter()
+            .any(|event| event.kind == "agent.pipeline.admitted"));
         assert_eq!(
             snapshot.provider_or_execution_substrate.as_deref(),
             Some("chatgpt_business")
