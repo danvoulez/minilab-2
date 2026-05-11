@@ -8,7 +8,7 @@ It is not architecture commentary. It is a pattern catalog. If a future slice de
 
 ---
 
-## 1. What the two slices proved
+## 1. What the landed slices proved
 
 Three vertical slices have validated the constitutional runtime against live domains:
 

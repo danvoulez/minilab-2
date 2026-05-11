@@ -149,6 +149,10 @@ pub enum CompileError {
         entry_path: String,
         error: IrLoweringError,
     },
+    /// Strong Grammar JSON parsing failed before IR construction.
+    StrongSyntaxError(String),
+    /// Strong Grammar parsed but could not be mapped into canonical IR.
+    StrongLoweringError(String),
 }
 
 impl fmt::Display for CompileError {
@@ -158,6 +162,8 @@ impl fmt::Display for CompileError {
             CompileError::IrLowering { entry_path, error } => {
                 write!(f, "ir-lowering at {entry_path}: {error}")
             }
+            CompileError::StrongSyntaxError(error) => write!(f, "strong-syntax: {error}"),
+            CompileError::StrongLoweringError(error) => write!(f, "strong-lowering: {error}"),
         }
     }
 }

@@ -23,6 +23,7 @@ pub mod plan_executor;
 pub mod planning_compiler;
 pub mod policy;
 pub mod refs;
+pub mod strong_grammar;
 pub mod validation;
 
 pub use act_identity::{CanonicalActionId, IdentityError};
@@ -62,6 +63,10 @@ pub use planning_compiler::{
 };
 pub use policy::PolicyClass;
 pub use refs::{DataRef, NodeId, PolicyId, SurfaceRef, TargetRef};
+pub use strong_grammar::{
+    compile_strong_json_to_ir_graph, compile_strong_program, parse_strong_json, ConfirmSpec,
+    ExecuteSpec, PipelineSpec, PipelineStep, ReviewSpec, StrongHandler, StrongProgram,
+};
 pub use validation::{
     check_capability, validate_admissibility, validate_capability, validate_policy,
     validate_structure, AdmissibilityContext, AdmissibleNode, ValidationError,

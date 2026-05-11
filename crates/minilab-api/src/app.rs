@@ -31,12 +31,13 @@ use tower_http::{
 use tracing::{info_span, Level};
 use uuid::Uuid;
 
-use crate::{config::ApiConfig, error::ApiError};
+use crate::{agent_runtime::AgentRuntimeService, config::ApiConfig, error::ApiError};
 
 #[derive(Clone)]
 pub struct AppState {
     pub store: StoreClient,
     pub config: Arc<ApiConfig>,
+    pub agent_runtime: AgentRuntimeService,
 }
 
 #[derive(Debug, Serialize)]
@@ -111,6 +112,9 @@ pub fn build_app(state: AppState) -> Router {
     // mutation on `/hosts/:id/pair` — pairing is a constitutional act, not a
     // resource update. See bundle-into-grammar §4.
     let host_pairing_routes = Router::new().route("/", post(host_pair));
+    let mcp_routes = crate::mcp_query::routes()
+        .merge(crate::mcp_command::routes())
+        .merge(crate::mcp_artifacts::routes());
 
     Router::new()
         .merge(health_routes)
@@ -751,6 +755,7 @@ mod tests {
     ) -> AppState {
         AppState {
             store: StoreClient::new(base_url, "service-key"),
+            agent_runtime: AgentRuntimeService::new().expect("agent runtime service"),
             config: Arc::new(ApiConfig {
                 bind_addr: "127.0.0.1:3000".parse().unwrap(),
                 public_base_url: Some("https://api.minilab.example".into()),

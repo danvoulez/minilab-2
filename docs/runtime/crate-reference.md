@@ -45,6 +45,7 @@ cargo test --workspace --features "sqlite-evidence,supabase-evidence"
 | `planning_compiler` | `compile_program_to_ir_graph`, `plan_operational_program`, `CompiledOperationalPlan`, `IrGraph`, `NodePlan`, `CompileError`, `PlanError` | Builds deterministic IR graphs and execution plans from operational programs. |
 | `policy` | `PolicyClass` | Closed constitutional policy classes A/B/C/D. D is reserved at the normal execution boundary. |
 | `refs` | `NodeId`, `DataRef`, `TargetRef`, `SurfaceRef`, `PolicyId` | Stable reference wrappers shared by IR, lowering, evidence, planning, validation, and downstream crates. |
+| `strong_grammar` | `StrongProgram`, `ReviewSpec`, `PipelineSpec`, `StrongHandler`, `parse_strong_json`, `compile_strong_json_to_ir_graph` | JSON v0 deliberative grammar for Place-Agent review programs; compiles to canonical IR, not to a second command layer. |
 | `validation` | `validate_structure`, `validate_policy`, `validate_capability`, `validate_admissibility`, `AdmissibilityContext`, `AdmissibleNode`, `ValidationError` | Enforces structural, policy, capability, and evidence-contract admissibility before lowering/execution. |
 
 ---
@@ -53,7 +54,7 @@ cargo test --workspace --features "sqlite-evidence,supabase-evidence"
 
 A material action should follow this path:
 
-1. Parse or construct a candidate act as operational grammar or IR.
+1. Parse or construct a candidate act as operational grammar, Strong Grammar, or IR.
 2. Resolve any `Decide` node through `decision`.
 3. Validate structure, policy, capability, and evidence requirements through `validation`.
 4. Lower the admissible node through `MinilabRuntimeLowerer` into an `OperationalCommand` and `LoweringPlan`.

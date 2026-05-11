@@ -265,6 +265,8 @@ Each phase has a recut, a success criterion, and an explicit out-of-scope list m
 
 ### Phase D — Strong Grammar → IR compiler (1.5–2 weeks)
 
+**Status update (2026-05-11).** JSON v0 landed: AST structs, parser, compiler to `IrGraph`, `CompileError` Strong variants, and tests for `SystemReview`, `DriftReview`, `OnSuccess`/`OnFailure` route nodes, `Execute`, and `Confirm`. Textual grammar remains v1.
+
 **Goal.** Phase 4 of the surgical manual. Introduce the deliberative regime. Strong Grammar is the Place Agent's language; it must compile to IR, not speak tools directly.
 
 **In scope (v0, minimal).**
@@ -294,6 +296,8 @@ compiles to a valid `IrGraph`, passes `validate_admissibility`, produces a `Comp
 ---
 
 ### Phase E — Agent Runtime backend (1.5 weeks)
+
+**Status update (2026-05-11).** Existing Agent Runtime and MCP handlers are now mounted in `build_app` at `/api/agent-runtime/*` and `/mcp/*`. The remaining Phase E work is the full NL→candidate→IR→validate→plan→execute→evidence pipeline and bypass tests.
 
 **Goal.** Phase 5 of the surgical manual. Humans speak natural language; the runtime speaks disciplined action. Close the ingress.
 

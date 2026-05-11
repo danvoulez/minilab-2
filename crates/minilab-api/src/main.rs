@@ -1,4 +1,4 @@
-use minilab_api::{build_app, ApiConfig, AppState};
+use minilab_api::{build_app, AgentRuntimeService, ApiConfig, AppState};
 use minilab_store::StoreClient;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -17,6 +17,10 @@ async fn main() {
             std::process::exit(1);
         }),
         config: std::sync::Arc::new(config),
+        agent_runtime: AgentRuntimeService::new().unwrap_or_else(|err| {
+            tracing::error!(error = %err, "failed to build agent runtime service");
+            std::process::exit(1);
+        }),
     };
     let app = build_app(state);
 
