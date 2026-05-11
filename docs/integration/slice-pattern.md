@@ -2,22 +2,23 @@
 
 **Status:** descriptive (extracted from landed work) · **Type:** meta-memo · **Scope:** constitutional-runtime
 
-This memo extracts the **shared anatomy** of the first two vertical slices that proved the constitutional runtime against live domains. It is descriptive, not prescriptive — it names what already worked twice, so the third slice and beyond can recognize the pattern instead of rediscovering it.
+This memo extracts the **shared anatomy** of the landed vertical slices that proved the constitutional runtime against live domains. It is descriptive, not prescriptive — it names what already worked across the landed slices, so the third slice and beyond can recognize the pattern instead of rediscovering it.
 
 It is not architecture commentary. It is a pattern catalog. If a future slice deviates from this anatomy, the deviation should be deliberate and documented in the slice's own ADR §5a entry.
 
 ---
 
-## 1. What the two slices proved
+## 1. What the landed slices proved
 
-Two vertical slices have validated the constitutional runtime against live domains:
+Three vertical slices have validated the constitutional runtime against live domains:
 
 - **`outbound.send`** (huge-into-grammar §4) — admissibility-governed business action. Proves the grammar can govern a live GTM act with five evidentiary stations under a single correlation.
 - **`host.pair`** (bundle-into-grammar §4) — admissibility-governed physical action. Proves the same grammar can govern a live infrastructure act with replay-safe handshake semantics under a single correlation.
+- **`install.reconcile`** (bundle-into-grammar §4) — Reconcile-shaped infrastructure action. Proves desired/applied convergence with planned sub-steps, partial convergence, idempotent rerun, and terminal closure under a single correlation.
 
-Both reconstruct cleanly from the ledger by `correlation_id`, under shared simulation and failure semantics.
+All three reconstruct cleanly from the ledger by `correlation_id`, under shared simulation and failure semantics.
 
-The runtime is therefore no longer only a memo structure: it has been demonstrated on both business and infra acts, with the same machinery and no special exceptions for either.
+The runtime is therefore no longer only a memo structure: it has been demonstrated on business acts, physical infra acts, and Reconcile-shaped infra acts, with the same machinery and no special exceptions for either.
 
 ---
 
@@ -68,6 +69,7 @@ These differences are **deliberate** and should not be "fixed" by future passes 
 | Substrate | Reads existing `contact`, `account`, `campaign`, `policy_rule`, `message_family` tables | Required a new minimal `host` table (migration `010_host_pairing_slice.sql`) | Huge's substrate predates the slice; bundle's did not exist |
 | Pre-admission depth | Three evaluators (`eligibility.evaluated`, `premium.evaluated`, `policy.evaluated`) plus an opt-out gate that is semantically separate from policy | One evaluator family in-orchestrator (registration / retirement / token / version / replay), no separate `*.evaluated` rows | Huge needs claim-vs-admissibility seam (huge memo invariant); bundle's pre-admission is narrower and atomic |
 | `target_runtime` | `Provider` (third-party SendGrid/Twilio executor) | `Platform` (executor lives inside the runtime process) | The closed ADR vocabulary; each slice uses the right member |
+| Reconcile shape | Not applicable | Not applicable | `install.reconcile` uses `planned → step.applied* → reconciled/failed`, documented in `reconcile-anatomy.md`; it is related but not forced into the single-act admitted/sent shape |
 | Honest stubs | `eligibility` and `premium` evaluators have full evidence shape, minimal predicate content | Capability check is a documented stub (host existence stands in) | Both slices made the **same kind** of trade-off — name the shape, defer the content — but at different stations |
 
 These rows are not a backlog. They are the truthful catalog of what each domain needed.
@@ -79,7 +81,7 @@ These rows are not a backlog. They are the truthful catalog of what each domain 
 The slice template is for acts that are **single, named, and admissibility-governed**. It is not the right shape for:
 
 - **Long-running flows** that span multiple acts (e.g. a sequence of three sends with a wait window between each). Those compose multiple slice acts, each with its own correlation.
-- **Reconcile-shaped operations** that converge desired and applied state over multiple sub-executes (e.g. `install.reconcile` from bundle §4). Those need a Reconcile-specific anatomy with `*.planned`, `*.step.applied`, `*.reconciled` — out of scope for this memo, captured when the first such slice lands.
+- **Reconcile-shaped operations** that converge desired and applied state over multiple sub-executes. The first landed example is `install.reconcile`; its specific anatomy is captured in `docs/integration/reconcile-anatomy.md` with `*.planned`, `*.step.applied`, `*.reconciled`, and `*.failed` closure.
 - **Pure observations** (`Observe`, `Collect`) that produce evidence but are not acts. Those use the intelligence-loop primitives directly without the admission/execution split.
 
 The slice pattern is one canonical anatomy among several. Naming it explicitly prevents future slices from being miscategorized into it.

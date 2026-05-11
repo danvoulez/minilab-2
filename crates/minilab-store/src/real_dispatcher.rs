@@ -51,6 +51,7 @@ use serde_json::json;
 use crate::client::{StoreClient, StoreError};
 use crate::dispatcher::{dispatch_operational_command, DispatchOutcome as StoreDispatchOutcome};
 use crate::host_pair::HostPairOutcome;
+use crate::install_reconcile::InstallReconcileOutcome;
 use crate::outbound_orchestrator::OutboundSendOutcome;
 
 /// Real runtime adapter that routes lowered commands into the landed slices.
@@ -132,6 +133,35 @@ impl RealDispatcher {
                 ExecDispatchOutcome::Failure {
                     reason_code,
                     detail: Some(composed_detail),
+                    runtime_failure: Some(rf),
+                }
+            }
+            Ok(StoreDispatchOutcome::InstallReconcile(InstallReconcileOutcome::Reconciled {
+                desired_hash,
+                applied_steps,
+                skipped_steps,
+            })) => ExecDispatchOutcome::Success {
+                evidence_ref: Some(desired_hash.clone()),
+                detail: Some(json!({
+                    "slice": "install.reconcile",
+                    "desired_hash": desired_hash,
+                    "applied_steps": applied_steps,
+                    "skipped_steps": skipped_steps,
+                })),
+            },
+            Ok(StoreDispatchOutcome::InstallReconcile(InstallReconcileOutcome::Failed {
+                reason_code,
+                reason_detail,
+                phase,
+                applied_steps,
+                ..
+            })) => {
+                let composed_detail = format!("[{phase}] {reason_detail}");
+                let rf =
+                    execution_failure(node_id, "install.reconcile", &reason_code, &composed_detail);
+                ExecDispatchOutcome::Failure {
+                    reason_code,
+                    detail: Some(format!("{composed_detail}; applied_steps={applied_steps}")),
                     runtime_failure: Some(rf),
                 }
             }
