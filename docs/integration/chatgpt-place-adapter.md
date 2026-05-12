@@ -79,7 +79,7 @@ For this architecture, `workspace agents` are the primary premium surface, and d
 | `minilab-mcp-command` | `LAB 8GB` | yes | Exposes governed action submission into Minilab apps |
 | `minilab-mcp-artifacts` | `LAB 8GB` | yes | Receives summaries, artifacts, and external outputs |
 | `place-policy-pack` | repo / config | yes | Defines identity, limits, and policy of the Place |
-| `agent-session-store` | Minilab backend / store | yes | Persists official session / run / checkpoint objects |
+| `agent-session-store` | Postgres via Minilab backend / store | yes | Persists official session / run / checkpoint objects as typed rows |
 | `chatgpt_workspace` place entry | canonical place catalog | yes | Registers the new canonical Place |
 | richer terminal sync | later | no | Improves parity with the native Place Agent |
 | full `infer/exec/emit` bridge | later | no | Closes stronger equivalence with the native runtime |
@@ -303,7 +303,7 @@ The UI-facing contract should continue to expose the familiar objects already ex
 - `AgentRuntimeAuditTrail`
 - `AgentRuntimeEffectivePolicy`
 
-The Minilab-side session is the source of truth for product behavior.
+The Minilab-side session is the source of truth for product behavior. Official adapter state is persisted online in Postgres as typed session, run, checkpoint, audit-event, and nine-slot `runtime_loglines` rows. The adapter must not treat a generic JSONB document as the official storage contract.
 
 ---
 
@@ -314,8 +314,8 @@ The Minilab-side session is the source of truth for product behavior.
 1. user talks to the ChatGPT-backed Place;
 2. ChatGPT consults `mcp-query`;
 3. ChatGPT returns useful output;
-4. `minilab-place-adapter` records:
-   `AgentSession`, `AgentRun`, `Checkpoint`, and `Advisory`;
+4. `minilab-place-adapter` records online in Postgres:
+   `AgentSession`, `AgentRun`, `Checkpoint`, `Advisory`, and the corresponding typed nine-slot LogLine row;
 5. the UI renders the turn as an official runtime turn.
 
 ### 8.2 Governed handoff flow
@@ -333,7 +333,7 @@ The Minilab-side session is the source of truth for product behavior.
 1. ChatGPT produces a report, file, or synthesis;
 2. it calls `mcp-artifacts.create_artifact(...)`;
 3. the adapter links the artifact to the run;
-4. the UI surfaces it as part of the official session history.
+4. the UI surfaces it as part of the official session history backed by Postgres runtime rows.
 
 ---
 

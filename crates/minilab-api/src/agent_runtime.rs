@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use minilab_store::StoreClient;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -158,6 +159,71 @@ pub struct AgentRuntimePipelineSummary {
     pub fully_succeeded: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<AgentPipelineEvidence>,
+}
+
+#[derive(Debug, Serialize)]
+struct AgentSessionPostgresRow {
+    session_id: String,
+    place_id: Option<String>,
+    app_id: Option<String>,
+    status: String,
+    provider_or_execution_substrate: Option<String>,
+    policy_state: Option<String>,
+    output_kind: Option<String>,
+    pending: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct AgentRunPostgresRow {
+    run_id: String,
+    session_id: String,
+    app_id: Option<String>,
+    status: Option<String>,
+    phase: Option<String>,
+    output_kind: Option<String>,
+    reply_text: Option<String>,
+    action_kind: Option<String>,
+    action_status: Option<String>,
+    governance_mode: Option<String>,
+    requires_confirmation: Option<bool>,
+    outcome_label: Option<String>,
+    artifact_count: i64,
+    primary_artifact_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AgentCheckpointPostgresRow {
+    run_id: String,
+    session_id: String,
+    phase: Option<String>,
+    summary: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AgentAuditEventPostgresRow {
+    session_id: String,
+    run_id: Option<String>,
+    event_index: i64,
+    kind: Option<String>,
+    summary: String,
+}
+
+#[derive(Debug, Serialize)]
+struct RuntimeLogLinePostgresRow {
+    logline_id: String,
+    session_id: String,
+    run_id: Option<String>,
+    who: String,
+    did: String,
+    this_ref: String,
+    when_ref: String,
+    confirmed_by: String,
+    if_ok: String,
+    if_doubt: String,
+    if_denied: String,
+    status: String,
+    output_kind: Option<String>,
+    policy_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1219,6 +1285,176 @@ fn push_audit_event(snapshot: &mut AgentRuntimeSessionSnapshot, kind: &str, summ
     }
 }
 
+pub async fn persist_runtime_snapshot_to_postgres(
+    store: &StoreClient,
+    snapshot: &AgentRuntimeSessionSnapshot,
+) -> Result<(), ApiError> {
+    let session_row = AgentSessionPostgresRow {
+        session_id: snapshot.session_id.clone(),
+        place_id: snapshot.place_id.clone(),
+        app_id: snapshot.app_id.clone(),
+        status: snapshot.session_status.clone(),
+        provider_or_execution_substrate: snapshot.provider_or_execution_substrate.clone(),
+        policy_state: snapshot
+            .audit_trail
+            .as_ref()
+            .and_then(|trail| trail.policy_state.clone()),
+        output_kind: snapshot.output_kind.clone(),
+        pending: snapshot.pending,
+    };
+    postgrest_upsert(store, "agent_runtime_sessions", &session_row, "session_id").await?;
+
+    if let Some(run_id) = snapshot.run_id.as_ref() {
+        let run_row = AgentRunPostgresRow {
+            run_id: run_id.clone(),
+            session_id: snapshot.session_id.clone(),
+            app_id: snapshot.app_id.clone(),
+            status: snapshot.run_status.clone(),
+            phase: snapshot.phase.clone(),
+            output_kind: snapshot.output_kind.clone(),
+            reply_text: snapshot.reply_text.clone(),
+            action_kind: snapshot
+                .action
+                .as_ref()
+                .map(|action| action.action_kind.clone()),
+            action_status: snapshot.action.as_ref().map(|action| action.status.clone()),
+            governance_mode: snapshot
+                .action
+                .as_ref()
+                .and_then(|action| action.governance_mode.clone()),
+            requires_confirmation: snapshot
+                .action
+                .as_ref()
+                .and_then(|action| action.requires_confirmation),
+            outcome_label: snapshot
+                .action
+                .as_ref()
+                .and_then(|action| action.outcome_label.clone()),
+            artifact_count: snapshot
+                .artifacts
+                .as_ref()
+                .map(|artifacts| artifacts.count as i64)
+                .unwrap_or(0),
+            primary_artifact_label: snapshot
+                .artifacts
+                .as_ref()
+                .and_then(|artifacts| artifacts.primary_label.clone()),
+        };
+        postgrest_upsert(store, "agent_runtime_runs", &run_row, "run_id").await?;
+
+        if let Some(checkpoint) = snapshot.checkpoint.as_ref() {
+            let checkpoint_row = AgentCheckpointPostgresRow {
+                run_id: run_id.clone(),
+                session_id: snapshot.session_id.clone(),
+                phase: checkpoint.phase.clone(),
+                summary: checkpoint.summary.clone(),
+            };
+            postgrest_upsert(
+                store,
+                "agent_runtime_checkpoints",
+                &checkpoint_row,
+                "run_id",
+            )
+            .await?;
+        }
+    }
+
+    if let Some(trail) = snapshot.audit_trail.as_ref() {
+        for (index, event) in trail.recent_events.iter().enumerate() {
+            let event_row = AgentAuditEventPostgresRow {
+                session_id: snapshot.session_id.clone(),
+                run_id: snapshot.run_id.clone(),
+                event_index: index as i64,
+                kind: event.kind.clone(),
+                summary: event.summary.clone(),
+            };
+            postgrest_upsert(
+                store,
+                "agent_runtime_audit_events",
+                &event_row,
+                "session_id,event_index",
+            )
+            .await?;
+        }
+    }
+
+    let policy_state = snapshot
+        .audit_trail
+        .as_ref()
+        .and_then(|trail| trail.policy_state.clone());
+    let logline_row = RuntimeLogLinePostgresRow {
+        logline_id: snapshot
+            .run_id
+            .as_ref()
+            .map(|run_id| format!("agent-run:{run_id}"))
+            .unwrap_or_else(|| format!("agent-session:{}", snapshot.session_id)),
+        session_id: snapshot.session_id.clone(),
+        run_id: snapshot.run_id.clone(),
+        who: snapshot
+            .place_id
+            .clone()
+            .unwrap_or_else(|| "chatgpt_workspace".into()),
+        did: snapshot
+            .action
+            .as_ref()
+            .map(|action| action.action_kind.clone())
+            .or_else(|| snapshot.output_kind.clone())
+            .unwrap_or_else(|| "agent_runtime.turn".into()),
+        this_ref: snapshot
+            .checkpoint
+            .as_ref()
+            .and_then(|checkpoint| checkpoint.summary.clone())
+            .or_else(|| snapshot.reply_text.clone())
+            .unwrap_or_else(|| "agent runtime turn".into()),
+        when_ref: "online".into(),
+        confirmed_by: "minilab-postgres-adapter".into(),
+        if_ok: snapshot
+            .runtime_pipeline
+            .as_ref()
+            .map(|pipeline| format!("{} dispatched node(s)", pipeline.dispatched_node_count))
+            .unwrap_or_else(|| "persist official runtime row".into()),
+        if_doubt: policy_state
+            .clone()
+            .unwrap_or_else(|| "route to governed review".into()),
+        if_denied: "leave canonical truth unchanged".into(),
+        status: snapshot.session_status.clone(),
+        output_kind: snapshot.output_kind.clone(),
+        policy_state,
+    };
+    postgrest_upsert(store, "runtime_loglines", &logline_row, "logline_id").await?;
+
+    Ok(())
+}
+
+async fn postgrest_upsert<T: Serialize>(
+    store: &StoreClient,
+    table: &str,
+    row: &T,
+    on_conflict: &str,
+) -> Result<(), ApiError> {
+    let url = format!("{}?on_conflict={}", store.rest(table), on_conflict);
+    let response = store
+        .http
+        .post(url)
+        .header("Prefer", "resolution=merge-duplicates,return=minimal")
+        .json(row)
+        .send()
+        .await
+        .map_err(|err| ApiError::upstream(format!("postgres write failed: {err}")))?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|err| format!("<failed to read postgres error body: {err}>"));
+        return Err(ApiError::upstream(format!(
+            "postgres returned {} while writing {table}: {body}",
+            status.as_u16()
+        )));
+    }
+    Ok(())
+}
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/places/{place_id}", get(get_place))
@@ -1244,6 +1480,11 @@ async fn post_message(
     Json(body): Json<AgentRuntimeSendRequest>,
 ) -> Result<Json<AgentRuntimeSendAck>, ApiError> {
     let ack = state.agent_runtime.submit_message(&place_id, body)?;
+    let snapshot = state
+        .agent_runtime
+        .get_session(&ack.session_id)?
+        .ok_or_else(|| ApiError::upstream("agent runtime snapshot missing after message submit"))?;
+    persist_runtime_snapshot_to_postgres(&state.store, &snapshot).await?;
     Ok(Json(ack))
 }
 

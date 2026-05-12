@@ -24,6 +24,7 @@ Why:
 | `010_host_pairing_slice.sql` | Host pairing slice: challenge, token hash, and pairing ledger |
 | `011_install_reconcile_slice.sql` | Install reconciliation slice: manifest diff, step tracking |
 | `012_runtime_sim_branching.sql` | Runtime simulation branching: sim_mode and branch_id columns |
+| `013_agent_runtime_postgres.sql` | Agent runtime Postgres tables and typed online LogLine rows |
 
 ## Rule
 
