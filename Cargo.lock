@@ -1112,6 +1112,7 @@ name = "minilab-cli"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "constitutional-runtime",
  "serde",
  "serde_json",
  "sha2",

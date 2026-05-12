@@ -1,0 +1,64 @@
+{
+  "lowering": {
+    "command": {
+      "args": {
+        "campaign_id": "00000000-0000-0000-0000-000000000002",
+        "channel": "email",
+        "contact_id": "00000000-0000-0000-0000-000000000001",
+        "correlation_id": "00000000-0000-0000-0000-000000000003"
+      },
+      "namespace": "outbound",
+      "target_runtime": "provider",
+      "verb": "send"
+    },
+    "plan": {
+      "estimated_latency_ms": 400,
+      "evidence": {
+        "required_kinds": [
+          "eligibility.evaluated",
+          "premium.evaluated",
+          "policy.evaluated",
+          "outbound.admitted",
+          "outbound.sent"
+        ]
+      },
+      "requires_confirmation": false
+    }
+  },
+  "node": {
+    "body": {
+      "action": {
+        "canonical": {
+          "namespace": "outbound",
+          "verb": "send"
+        }
+      },
+      "params": {
+        "campaign_id": "00000000-0000-0000-0000-000000000002",
+        "channel": "email",
+        "contact_id": "00000000-0000-0000-0000-000000000001",
+        "correlation_id": "00000000-0000-0000-0000-000000000003"
+      },
+      "primitive": "EXECUTE"
+    },
+    "id": "cli-outbound-send"
+  },
+  "status": "admissible_lowerable",
+  "touches_world": false,
+  "validation": {
+    "admissibility": "ok",
+    "at_execution_boundary": true,
+    "capability_manifest": "minilab-cli-dry-run-lowering",
+    "capability_scope": "dry_run_lowering_only",
+    "not_authorized_for": [
+      "provider_dispatch",
+      "store_mutation",
+      "supabase_write",
+      "evidence_write"
+    ],
+    "policy_class": "C",
+    "require_evidence_closure": false,
+    "runtime_permitted": true
+  },
+  "walk": "constitutional_runtime"
+}

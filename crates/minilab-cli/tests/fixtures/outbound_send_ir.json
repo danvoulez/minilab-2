@@ -1,0 +1,18 @@
+{
+  "id": "cli-outbound-send",
+  "body": {
+    "primitive": "EXECUTE",
+    "action": {
+      "canonical": {
+        "namespace": "outbound",
+        "verb": "send"
+      }
+    },
+    "params": {
+      "campaign_id": "00000000-0000-0000-0000-000000000002",
+      "channel": "email",
+      "contact_id": "00000000-0000-0000-0000-000000000001",
+      "correlation_id": "00000000-0000-0000-0000-000000000003"
+    }
+  }
+}
