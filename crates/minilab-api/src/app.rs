@@ -786,7 +786,14 @@ mod tests {
 
     #[tokio::test]
     async fn agent_runtime_message_route_records_runtime_pipeline() {
-        let app = build_app(test_state("http://127.0.0.1:9".into(), None, None));
+        use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+
+        let postgres = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&postgres)
+            .await;
+        let app = build_app(test_state(postgres.uri(), None, None));
 
         let response = app
             .clone()
