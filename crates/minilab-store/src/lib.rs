@@ -1,3 +1,4 @@
+pub mod admission;
 pub mod audit;
 pub mod campaign;
 pub mod client;
@@ -18,6 +19,10 @@ pub mod scoring;
 pub mod store;
 pub mod webhook;
 
+pub use admission::{
+    AdmissionCommitReceipt, AdmissionService, AdmissionWorld, InMemoryAdmissionState,
+    InMemoryAdmissionWorld, SupabaseAdmissionWorld,
+};
 pub use audit::{
     export_evidence_trail, kpi_snapshot, EvidenceTrail, EvidenceTrailRow, EvidenceTrailSummary,
     KpiSnapshot, TouchExplanation,

@@ -6,6 +6,7 @@
 //! See `docs/runtime/constitutional-runtime.md` for the full definition.
 
 pub mod act_identity;
+pub mod admission;
 pub mod capability;
 pub mod decision;
 pub mod evidence;
@@ -27,6 +28,10 @@ pub mod strong_grammar;
 pub mod validation;
 
 pub use act_identity::{CanonicalActionId, IdentityError};
+pub use admission::{
+    evaluate_admission, AdmissionContext, AdmissionDecision, AdmissionRuling, Boundary,
+    BoundaryKind, BoundaryRule, Gate, Passport, ProposedLogLineAct, Visa,
+};
 pub use capability::{
     primitive_kind, CapabilityBinding, CapabilityManifest, CostEnvelope, EvidenceGuarantee,
     GuaranteeEnvelope, LatencyEnvelope, PrimitiveName,

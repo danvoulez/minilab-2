@@ -12,6 +12,9 @@ use axum::{
     routing::{get, post},
     BoxError, Json, Router,
 };
+use constitutional_runtime::{
+    evaluate_admission, AdmissionContext, AdmissionRuling, ProposedLogLineAct,
+};
 use futures_util::stream;
 use minilab_store::{
     export_evidence_trail, lower_and_dispatch_execute,
@@ -129,6 +132,7 @@ pub fn build_app(state: AppState) -> Router {
     let outbound_routes = Router::new().route("/send", post(outbound_send));
     let installation_routes = Router::new().route("/{id}/reconcile", post(install_reconcile));
     let evidence_routes = Router::new().route("/{correlation_id}/trail", get(evidence_trail));
+    let admission_routes = Router::new().route("/dry-run", post(admission_dry_run));
 
     // Act-shaped surface (`POST /host-pairings`) rather than a REST-CRUD
     // mutation on `/hosts/:id/pair` — pairing is a constitutional act, not a
@@ -146,10 +150,25 @@ pub fn build_app(state: AppState) -> Router {
         .nest("/host-pairings", host_pairing_routes)
         .nest("/installations", installation_routes)
         .nest("/evidence", evidence_routes)
+        .nest("/v1/admission", admission_routes)
         .nest("/api/agent-runtime", crate::agent_runtime::routes())
         .nest("/mcp", mcp_routes)
         .with_state(state)
         .layer(middleware)
+}
+
+#[derive(Debug, Deserialize)]
+struct AdmissionDryRunRequest {
+    proposed: ProposedLogLineAct,
+    context: AdmissionContext,
+}
+
+/// Pure dry-run admission surface. It does not load or commit world state;
+/// callers must supply the complete context to evaluate.
+async fn admission_dry_run(
+    Json(body): Json<AdmissionDryRunRequest>,
+) -> Result<Json<AdmissionRuling>, ApiError> {
+    Ok(Json(evaluate_admission(&body.proposed, &body.context)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -698,6 +717,71 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn admission_dry_run_returns_touchless_ruling() {
+        let app = build_app(test_state("http://127.0.0.1:9".into(), None, None));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/admission/dry-run")
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "proposed": {
+                                "who": "agent:ana",
+                                "did": "host.inspect",
+                                "this": {"target":"lab512"},
+                                "confirmed_by": ["passport:ana"],
+                                "if_ok": "continue",
+                                "if_doubt": "send to doubt",
+                                "if_not": "reject",
+                                "status": "candidate"
+                            },
+                            "context": {
+                                "passports": [{
+                                    "passport_id": "passport:ana",
+                                    "subject": "agent:ana",
+                                    "subject_type": "agent",
+                                    "status": "closed"
+                                }],
+                                "visas": [{
+                                    "visa_id": "visa:ana",
+                                    "holder": "agent:ana",
+                                    "allowed_dids": ["host.inspect"],
+                                    "forbidden_dids": [],
+                                    "status": "closed"
+                                }],
+                                "gates": [{
+                                    "gate_id": "gate:host",
+                                    "applies_to_dids": ["host.inspect"],
+                                    "fail_closed": true,
+                                    "status": "closed"
+                                }],
+                                "boundaries": []
+                            }
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let ruling: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(ruling["decision"], "yes");
+        assert_eq!(ruling["touches_world"], false);
+        assert!(ruling["proposed_act_hash"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:"));
     }
 
     #[tokio::test]
