@@ -6,10 +6,14 @@
 //! evidence that can be replayed by later runtime slices.
 
 use chrono::{DateTime, Utc};
+use constitutional_runtime::{
+    validate_admissibility, AdmissibilityContext, CapabilityManifest, IrNode, Lowerer,
+    MinilabRuntimeLowerer, PrimitiveName,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -158,19 +162,12 @@ fn help() -> Result<(), CliError> {
 fn logline(args: &[String]) -> Result<(), CliError> {
     match args.first().map(String::as_str) {
         Some("compile") => {
-            let act = read_act(required(args, 1, "logline compile <file>")?)?;
-            act.validate()?;
-            print_json(&json!({"kind":"compiled_logline_act","slots":NINE_SLOTS,"act":act}))
+            let compiled = compile_logline_file(required(args, 1, "logline compile <file>")?)?;
+            print_json(&compiled)
         }
         Some("walk") => {
-            let act = read_act(required(args, 1, "logline walk <file>")?)?;
-            let status = match act.validate() {
-                Ok(()) => "admissible_candidate",
-                Err(_) => "doubt",
-            };
-            print_json(
-                &json!({"walk":"local_probe","status":status,"touches_world":false,"act":act}),
-            )
+            let walked = walk_logline_file(required(args, 1, "logline walk <file>")?)?;
+            print_json(&walked)
         }
         Some("digest") => {
             let bytes = fs::read(required(args, 1, "logline digest <file>")?)?;
@@ -182,6 +179,146 @@ fn logline(args: &[String]) -> Result<(), CliError> {
             "logline <compile|walk|digest> <file>".into(),
         )),
     }
+}
+
+fn compile_logline_file(path: &str) -> Result<Value, CliError> {
+    if let Some(node) = read_ir_node(path)? {
+        return compile_ir_node(node);
+    }
+
+    let act = read_act(path)?;
+    act.validate()?;
+    Ok(json!({"kind":"compiled_logline_act","slots":NINE_SLOTS,"act":act}))
+}
+
+fn walk_logline_file(path: &str) -> Result<Value, CliError> {
+    if let Some(node) = read_ir_node(path)? {
+        return walk_ir_node(node);
+    }
+
+    let act = read_act(path)?;
+    let status = match act.validate() {
+        Ok(()) => "admissible_candidate",
+        Err(_) => "doubt",
+    };
+    Ok(json!({"walk":"local_probe","status":status,"touches_world":false,"act":act}))
+}
+
+fn compile_ir_node(node: IrNode) -> Result<Value, CliError> {
+    let (node, validation) = validate_ir_node(node)?;
+    let lowerer = MinilabRuntimeLowerer;
+    let (plan, command) = lowerer
+        .lower(&node)
+        .map_err(|err| CliError::InvalidAct(err.to_string()))?;
+
+    Ok(json!({
+        "kind": "compiled_ir_node",
+        "validation": validation,
+        "node": node,
+        "lowering": {
+            "plan": plan,
+            "command": command,
+            "touches_world": false
+        }
+    }))
+}
+
+fn walk_ir_node(node: IrNode) -> Result<Value, CliError> {
+    let (node, validation) = match validate_ir_node(node) {
+        Ok(validated) => validated,
+        Err(err) => {
+            return Ok(json!({
+                "walk": "constitutional_runtime",
+                "status": "doubt",
+                "touches_world": false,
+                "error": err.to_string()
+            }));
+        }
+    };
+
+    let lowerer = MinilabRuntimeLowerer;
+    match lowerer.lower(&node) {
+        Ok((plan, command)) => Ok(json!({
+            "walk": "constitutional_runtime",
+            "status": "admissible_lowerable",
+            "touches_world": false,
+            "validation": validation,
+            "node": node,
+            "lowering": {
+                "plan": plan,
+                "command": command
+            }
+        })),
+        Err(err) => Ok(json!({
+            "walk": "constitutional_runtime",
+            "status": "doubt",
+            "touches_world": false,
+            "validation": validation,
+            "node": node,
+            "error": err.to_string()
+        })),
+    }
+}
+
+fn validate_ir_node(node: IrNode) -> Result<(IrNode, Value), CliError> {
+    let ctx = AdmissibilityContext::default();
+    let manifest = cli_capability_manifest();
+    let admissible = validate_admissibility(&node, &[manifest], &ctx)
+        .map_err(|err| CliError::InvalidAct(err.to_string()))?;
+
+    Ok((
+        admissible.node,
+        json!({
+            "admissibility": "ok",
+            "policy_class": ctx.policy_class,
+            "runtime_permitted": ctx.runtime_permitted,
+            "at_execution_boundary": ctx.at_execution_boundary,
+            "require_evidence_closure": ctx.require_evidence_closure,
+            "capability_manifest": "minilab-cli-runtime"
+        }),
+    ))
+}
+
+fn cli_capability_manifest() -> CapabilityManifest {
+    CapabilityManifest {
+        substrate_id: "minilab-cli-runtime".into(),
+        substrate_version: env!("CARGO_PKG_VERSION").into(),
+        supported_primitives: BTreeSet::from_iter([
+            PrimitiveName::Observe,
+            PrimitiveName::Collect,
+            PrimitiveName::Fetch,
+            PrimitiveName::Compress,
+            PrimitiveName::Classify,
+            PrimitiveName::Prioritize,
+            PrimitiveName::Compare,
+            PrimitiveName::Route,
+            PrimitiveName::Schedule,
+            PrimitiveName::Execute,
+            PrimitiveName::Emit,
+            PrimitiveName::Persist,
+            PrimitiveName::Confirm,
+            PrimitiveName::Cancel,
+            PrimitiveName::Reconcile,
+        ]),
+        declared_guarantees: BTreeSet::from(["evidence.write".into()]),
+        ..Default::default()
+    }
+}
+
+fn read_ir_node(path: &str) -> Result<Option<IrNode>, CliError> {
+    if !path.ends_with(".json") {
+        return Ok(None);
+    }
+
+    let value: Value = serde_json::from_slice(&fs::read(path)?)?;
+    let looks_like_ir_node = value.get("id").is_some() && value.get("body").is_some();
+    if !looks_like_ir_node {
+        return Ok(None);
+    }
+
+    serde_json::from_value(value)
+        .map(Some)
+        .map_err(|err| CliError::InvalidAct(format!("invalid IR node: {err}")))
 }
 
 fn receipts(args: &[String]) -> Result<(), CliError> {

@@ -1,0 +1,56 @@
+{
+  "kind": "compiled_ir_node",
+  "lowering": {
+    "command": {
+      "args": {
+        "campaign_id": "00000000-0000-0000-0000-000000000002",
+        "channel": "email",
+        "contact_id": "00000000-0000-0000-0000-000000000001",
+        "correlation_id": "00000000-0000-0000-0000-000000000003"
+      },
+      "namespace": "outbound",
+      "target_runtime": "provider",
+      "verb": "send"
+    },
+    "plan": {
+      "estimated_latency_ms": 400,
+      "evidence": {
+        "required_kinds": [
+          "eligibility.evaluated",
+          "premium.evaluated",
+          "policy.evaluated",
+          "outbound.admitted",
+          "outbound.sent"
+        ]
+      },
+      "requires_confirmation": false
+    },
+    "touches_world": false
+  },
+  "node": {
+    "body": {
+      "action": {
+        "canonical": {
+          "namespace": "outbound",
+          "verb": "send"
+        }
+      },
+      "params": {
+        "campaign_id": "00000000-0000-0000-0000-000000000002",
+        "channel": "email",
+        "contact_id": "00000000-0000-0000-0000-000000000001",
+        "correlation_id": "00000000-0000-0000-0000-000000000003"
+      },
+      "primitive": "EXECUTE"
+    },
+    "id": "cli-outbound-send"
+  },
+  "validation": {
+    "admissibility": "ok",
+    "at_execution_boundary": true,
+    "capability_manifest": "minilab-cli-runtime",
+    "policy_class": "C",
+    "require_evidence_closure": true,
+    "runtime_permitted": true
+  }
+}
