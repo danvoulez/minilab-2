@@ -7,8 +7,8 @@
 
 use chrono::{DateTime, Utc};
 use constitutional_runtime::{
-    validate_admissibility, AdmissibilityContext, CapabilityManifest, IrNode, Lowerer,
-    MinilabRuntimeLowerer, PrimitiveName,
+    primitive_kind, validate_admissibility, AdmissibilityContext, CapabilityManifest, IrNode,
+    Lowerer, MinilabRuntimeLowerer, PrimitiveName,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -261,8 +261,8 @@ fn walk_ir_node(node: IrNode) -> Result<Value, CliError> {
 }
 
 fn validate_ir_node(node: IrNode) -> Result<(IrNode, Value), CliError> {
-    let ctx = AdmissibilityContext::default();
-    let manifest = cli_capability_manifest();
+    let ctx = dry_run_admissibility_context();
+    let manifest = cli_capability_manifest(&node);
     let admissible = validate_admissibility(&node, &[manifest], &ctx)
         .map_err(|err| CliError::InvalidAct(err.to_string()))?;
 
@@ -274,33 +274,37 @@ fn validate_ir_node(node: IrNode) -> Result<(IrNode, Value), CliError> {
             "runtime_permitted": ctx.runtime_permitted,
             "at_execution_boundary": ctx.at_execution_boundary,
             "require_evidence_closure": ctx.require_evidence_closure,
-            "capability_manifest": "minilab-cli-runtime"
+            "capability_manifest": "minilab-cli-dry-run-lowering",
+            "capability_scope": "dry_run_lowering_only",
+            "not_authorized_for": [
+                "provider_dispatch",
+                "store_mutation",
+                "supabase_write",
+                "evidence_write"
+            ]
         }),
     ))
 }
 
-fn cli_capability_manifest() -> CapabilityManifest {
+fn dry_run_admissibility_context() -> AdmissibilityContext {
+    AdmissibilityContext {
+        require_evidence_closure: false,
+        ..Default::default()
+    }
+}
+
+fn cli_capability_manifest(node: &IrNode) -> CapabilityManifest {
+    let mut supported_kinds = BTreeSet::new();
+    if let Some(kind) = primitive_kind(&node.body) {
+        supported_kinds.insert(kind.to_string());
+    }
+
     CapabilityManifest {
-        substrate_id: "minilab-cli-runtime".into(),
+        substrate_id: "minilab-cli-dry-run-lowering".into(),
         substrate_version: env!("CARGO_PKG_VERSION").into(),
-        supported_primitives: BTreeSet::from_iter([
-            PrimitiveName::Observe,
-            PrimitiveName::Collect,
-            PrimitiveName::Fetch,
-            PrimitiveName::Compress,
-            PrimitiveName::Classify,
-            PrimitiveName::Prioritize,
-            PrimitiveName::Compare,
-            PrimitiveName::Route,
-            PrimitiveName::Schedule,
-            PrimitiveName::Execute,
-            PrimitiveName::Emit,
-            PrimitiveName::Persist,
-            PrimitiveName::Confirm,
-            PrimitiveName::Cancel,
-            PrimitiveName::Reconcile,
-        ]),
-        declared_guarantees: BTreeSet::from(["evidence.write".into()]),
+        supported_primitives: BTreeSet::from([PrimitiveName::from_primitive(&node.body)]),
+        supported_kinds,
+        declared_guarantees: BTreeSet::new(),
         ..Default::default()
     }
 }
@@ -311,14 +315,13 @@ fn read_ir_node(path: &str) -> Result<Option<IrNode>, CliError> {
     }
 
     let value: Value = serde_json::from_slice(&fs::read(path)?)?;
-    let looks_like_ir_node = value.get("id").is_some() && value.get("body").is_some();
-    if !looks_like_ir_node {
-        return Ok(None);
+    match serde_json::from_value::<IrNode>(value.clone()) {
+        Ok(node) => Ok(Some(node)),
+        Err(err) if value.pointer("/body/primitive").is_some() => {
+            Err(CliError::InvalidAct(format!("invalid IR node: {err}")))
+        }
+        Err(_) => Ok(None),
     }
-
-    serde_json::from_value(value)
-        .map(Some)
-        .map_err(|err| CliError::InvalidAct(format!("invalid IR node: {err}")))
 }
 
 fn receipts(args: &[String]) -> Result<(), CliError> {

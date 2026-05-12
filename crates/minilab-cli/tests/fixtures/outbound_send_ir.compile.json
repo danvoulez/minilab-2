@@ -48,9 +48,16 @@
   "validation": {
     "admissibility": "ok",
     "at_execution_boundary": true,
-    "capability_manifest": "minilab-cli-runtime",
+    "capability_manifest": "minilab-cli-dry-run-lowering",
+    "capability_scope": "dry_run_lowering_only",
+    "not_authorized_for": [
+      "provider_dispatch",
+      "store_mutation",
+      "supabase_write",
+      "evidence_write"
+    ],
     "policy_class": "C",
-    "require_evidence_closure": true,
+    "require_evidence_closure": false,
     "runtime_permitted": true
   }
 }
