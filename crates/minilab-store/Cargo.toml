@@ -6,6 +6,7 @@ description = "Supabase persistence layer for Minilab canonical entities"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+async-trait = "0.1"
 base64 = "0.22"
 ed25519-dalek = "2.1"
 constitutional-runtime = { path = "../constitutional-runtime" }
